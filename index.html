@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SLE记录簿，支持云端同步的个人疾病管理应用" />
+    <title>SLE记录簿 · 疾病管理</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260717-username-auth" />
+  </head>
+  <body>
+    <section class="auth-shell" id="authShell" hidden aria-label="账号登录">
+      <div class="auth-brand"><span class="brand-mark" aria-hidden="true"><svg class="butterfly-logo" viewBox="0 0 32 32"><path d="M15 15.5C11.8 8.2 6.2 6 4.5 10.2C3 14 6.8 17.2 14.8 17Z"/><path d="M17 15.5C20.2 8.2 25.8 6 27.5 10.2C29 14 25.2 17.2 17.2 17Z"/><path d="M15 18C10.8 18.8 8.2 22.2 9.8 25.2C11.2 27.8 14.4 24.8 15.6 20Z"/><path d="M17 18C21.2 18.8 23.8 22.2 22.2 25.2C20.8 27.8 17.6 24.8 16.4 20Z"/><rect x="15" y="8" width="2" height="16" rx="1"/></svg></span><strong>SLE记录簿</strong><p>把每一次检查和治疗变化，留在同一条时间线上。</p><div class="auth-trust"><span><i data-lucide="shield-check"></i>个人数据隔离</span><span><i data-lucide="cloud"></i>多设备同步准备</span><span><i data-lucide="key-round"></i>密码登录保护</span></div></div>
+      <div class="auth-panel">
+        <div class="auth-view is-active" data-auth-view="login"><p class="section-kicker">WELCOME BACK</p><h1>用户名密码登录</h1><p>输入用户名和密码，继续查看云端记录。</p><div class="auth-service-notice" data-auth-service-notice hidden role="status"></div><form id="loginForm"><label><span>用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required placeholder="输入用户名" /></label><label><span>密码</span><div class="password-field"><input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="20" required placeholder="输入登录密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><p class="form-error" data-form-error></p><button class="button primary auth-submit" type="submit">登录</button></form><p class="auth-switch">还没有账号？<button type="button" data-auth-target="register">注册账号</button></p></div>
+        <div class="auth-view" data-auth-view="register"><button class="auth-back" type="button" data-auth-target="login"><i data-lucide="arrow-left"></i>返回登录</button><p class="section-kicker">CREATE ACCOUNT</p><h1>用户名注册</h1><p>使用用户名和密码建立个人疾病管理空间。</p><form id="registerForm"><label><span>用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required placeholder="3–20 位中文、字母、数字或下划线" /></label><label><span>设置密码</span><div class="password-field"><input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="8–20 位，包含字母和数字" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><label><span>确认密码</span><div class="password-field"><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="再次输入密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><label class="consent-check"><input name="consent" type="checkbox" required /><span>我已阅读并同意服务协议与隐私政策</span></label><p class="form-error" data-form-error></p><button class="button primary auth-submit" type="submit">注册并登录</button></form></div>
+      </div>
+    </section>
+
+    <div class="app-shell" id="appShell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="brand" href="#" aria-label="SLE 管理首页">
+          <span class="brand-mark" aria-hidden="true"><svg class="butterfly-logo" viewBox="0 0 32 32"><path d="M15 15.5C11.8 8.2 6.2 6 4.5 10.2C3 14 6.8 17.2 14.8 17Z"/><path d="M17 15.5C20.2 8.2 25.8 6 27.5 10.2C29 14 25.2 17.2 17.2 17Z"/><path d="M15 18C10.8 18.8 8.2 22.2 9.8 25.2C11.2 27.8 14.4 24.8 15.6 20Z"/><path d="M17 18C21.2 18.8 23.8 22.2 22.2 25.2C20.8 27.8 17.6 24.8 16.4 20Z"/><rect x="15" y="8" width="2" height="16" rx="1"/></svg></span>
+          <span class="brand-copy"><strong>SLE记录簿</strong><small>个人疾病管理</small></span>
+        </a>
+
+        <nav class="side-nav">
+          <button class="nav-item is-active" data-view="indicators" aria-current="page">
+            <i data-lucide="activity"></i><span>指标</span>
+          </button>
+          <button class="nav-item" data-view="medications">
+            <i data-lucide="pill"></i><span>用药</span>
+          </button>
+          <button class="nav-item" data-view="profile">
+            <i data-lucide="user-round"></i><span>我的</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="sync-status">
+            <span class="sync-dot" aria-hidden="true"></span>
+            <div><strong>已同步</strong><small>今天 09:42</small></div>
+            <i data-lucide="cloud"></i>
+          </div>
+          <button class="account-chip" data-view="profile">
+            <span class="avatar">锦</span>
+            <span><strong>韩锦泽</strong><small>138 0013 8000</small></span>
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="mobile-header">
+          <a class="brand compact" href="#" aria-label="SLE记录簿首页"><span class="brand-mark" aria-hidden="true"><svg class="butterfly-logo" viewBox="0 0 32 32"><path d="M15 15.5C11.8 8.2 6.2 6 4.5 10.2C3 14 6.8 17.2 14.8 17Z"/><path d="M17 15.5C20.2 8.2 25.8 6 27.5 10.2C29 14 25.2 17.2 17.2 17Z"/><path d="M15 18C10.8 18.8 8.2 22.2 9.8 25.2C11.2 27.8 14.4 24.8 15.6 20Z"/><path d="M17 18C21.2 18.8 23.8 22.2 22.2 25.2C20.8 27.8 17.6 24.8 16.4 20Z"/><rect x="15" y="8" width="2" height="16" rx="1"/></svg></span><strong>SLE记录簿</strong></a>
+          <div class="header-actions">
+            <span class="sync-mini"><span class="sync-dot"></span>已同步</span>
+            <button class="icon-button theme-toggle" aria-label="切换深色模式"><i data-lucide="moon"></i></button>
+          </div>
+        </header>
+
+        <div class="desktop-topbar">
+          <div class="breadcrumb"><span>SLE记录簿</span><i data-lucide="chevron-right"></i><strong id="breadcrumbTitle">指标</strong></div>
+          <div class="topbar-actions">
+            <button class="icon-button theme-toggle" aria-label="切换深色模式"><i data-lucide="moon"></i></button>
+          </div>
+        </div>
+
+        <section class="app-view is-active" id="indicatorsView" data-view-panel="indicators">
+          <div class="page-heading">
+            <div><p class="eyebrow">LAB INDICATORS</p><h1>指标记录</h1><p>查看每一次变化，也保留当时的真实参考范围。</p></div>
+            <button class="button primary" data-open-modal="checkModal" aria-label="新增检查"><i data-lucide="plus"></i>新增检查</button>
+          </div>
+
+          <div class="category-tabs" role="tablist" aria-label="指标分类">
+            <button class="category-tab is-active" data-category="activity" role="tab" aria-selected="true">炎症 / 活动指标</button>
+            <button class="category-tab" data-category="kidney" role="tab" aria-selected="false">肾脏风险</button>
+            <button class="category-tab" data-category="blood" role="tab" aria-selected="false">血象指标</button>
+            <button class="category-tab" data-category="other" role="tab" aria-selected="false">其他指标</button>
+          </div>
+
+          <div class="indicator-picker-wrap">
+            <div class="indicator-picker" id="indicatorPicker" aria-label="选择指标"></div>
+            <button class="add-indicator" data-open-modal="indicatorModal" aria-label="添加指标"><i data-lucide="plus"></i>添加指标</button>
+          </div>
+
+          <div class="overview-grid">
+            <article class="overview-card panda-card">
+              <div class="card-topline"><span class="section-kicker">LATEST RESULT</span><span class="status-badge warning" id="statusBadge">偏低</span></div>
+              <div class="metric-title"><h2 id="indicatorFullName">补体 C3</h2><div class="metric-actions"><span class="mobile-action-hint">添加数据</span><button class="button secondary small-action" data-open-modal="quickModal" aria-label="添加数据"><i data-lucide="plus"></i>添加数据</button></div></div>
+              <div class="metric-value"><span id="latestValue">0.59</span><small id="latestUnit">g/L</small></div>
+              <div class="change-line" id="changeLine"><span class="trend-up"><i data-lucide="trending-up"></i>较上次上升 0.003 g/L</span><span>2026 年 6 月 26 日</span></div>
+              <div class="reference-rail" aria-label="参考范围位置">
+                <div class="rail-track"><span class="normal-range"></span><span class="value-pin" id="valuePin"></span></div>
+                <div class="rail-labels"><span>0</span><span id="rangeLabel">参考范围 0.79-1.52</span><span>1.8</span></div>
+              </div>
+            </article>
+
+          </div>
+
+          <article class="chart-card panda-card">
+            <div class="chart-header">
+              <div><p class="section-kicker">TREND</p><h2>长期趋势</h2><p>灰色区域为参考范围，仅呈现数据与时间的对应关系。</p></div>
+              <div class="chart-controls">
+                <div class="segmented" aria-label="趋势时间范围">
+                  <button data-range="6m">6 月</button><button class="is-active" data-range="1y">1 年</button><button data-range="2y">2 年</button><button data-range="all">全部</button>
+                </div>
+                <label class="switch-control"><span>显示用药</span><input id="medicationSwitch" type="checkbox" checked /><span class="switch" aria-hidden="true"></span></label>
+              </div>
+            </div>
+
+            <div class="unit-note"><span>结果（<b id="chartUnit">g/L</b>）</span><span class="legend"><i></i>参考范围</span></div><div class="unit-warning" id="unitMismatchWarning" hidden><i data-lucide="triangle-alert"></i>历史记录存在不同单位，请分别核对，不建议直接比较。</div>
+            <div class="chart-wrap">
+              <svg id="trendChart" role="img" aria-label="补体 C3 长期趋势图" viewBox="0 0 960 300" preserveAspectRatio="none"></svg>
+              <div class="chart-tooltip" id="chartTooltip" role="status"></div>
+            </div>
+            <div class="medication-lanes" id="medicationLanes">
+              <div class="lane-label"><span>同期用药</span></div>
+              <div class="medication-lane" data-medication-name="泼尼松" style="--med-color:#F9DCE5"><span class="drug-name">泼尼松</span><div class="lane-track"><span class="drug-bar bar-one">15 mg / 日</span></div></div>
+              <div class="medication-lane" data-medication-name="吗替麦考酚酯" style="--med-color:#DDEBFF"><span class="drug-name">吗替麦考酚酯</span><div class="lane-track"><span class="drug-bar bar-two">0.5 g · 每日两次</span></div></div>
+              <div class="medication-lane" data-medication-name="贝利尤单抗" style="--med-color:#EADDF7"><span class="drug-name">贝利尤单抗</span><div class="lane-track nodes"><i style="left:12%"></i><i style="left:31%"></i><i style="left:51%"></i><i style="left:70%"></i><i style="left:90%"></i></div></div>
+              <p class="causality-note"><i data-lucide="info"></i>用药信息仅用于时间对照，不代表药物与指标变化存在因果关系。</p>
+            </div>
+          </article>
+
+          <section class="history-section">
+            <div class="section-heading"><div><p class="section-kicker">HISTORY</p><h2>历史记录 <span id="historyCount">7</span></h2></div></div>
+            <div class="history-table-wrap">
+              <table class="history-table">
+                <thead><tr><th>检查日期</th><th>检查结果</th><th>参考范围</th><th>医院</th><th>备注</th><th><span class="sr-only">操作</span></th></tr></thead>
+                <tbody id="historyBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="app-view" id="medicationsView" data-view-panel="medications">
+          <div class="page-heading">
+            <div><p class="eyebrow">MEDICATION JOURNEY</p><h1>用药历程</h1><p>剂量调整形成新的阶段，旧记录始终被完整保留。</p></div>
+            <button class="button primary" data-open-modal="medicationModal" aria-label="添加用药"><i data-lucide="plus"></i>添加用药</button>
+          </div>
+
+          <section class="current-medications">
+            <div class="section-heading medication-section-heading"><div><p class="section-kicker">CURRENT</p><h2>当前用药 <span id="currentMedicationCount">3</span></h2></div><div class="medication-status-tabs" role="tablist" aria-label="用药状态"><button type="button" class="is-active" role="tab" aria-selected="true" data-medication-filter="active">使用中</button><button type="button" role="tab" aria-selected="false" data-medication-filter="inactive">暂停/停止</button></div></div>
+            <div class="medication-cards">
+              <article class="med-card" data-medication-color="#F9DCE5"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#F9DCE5" title="标识颜色：淡粉色"><i data-lucide="pill"></i></span><span class="status-badge neutral">使用中</span></div><h3>泼尼松</h3><p>醋酸泼尼松片</p><div class="dose"><strong>15</strong><span>mg / 日</span></div><dl><div><dt>当前阶段</dt><dd>2026.02.18 至今</dd></div><div><dt>最近调整</dt><dd>5 个月前 · 减少剂量</dd></div></dl><div class="card-actions"><button>调整剂量</button><button class="icon-button small" aria-label="泼尼松更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
+              <article class="med-card" data-medication-color="#DDEBFF"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#DDEBFF" title="标识颜色：淡蓝"><i data-lucide="pill"></i></span><span class="status-badge neutral">使用中</span></div><h3>吗替麦考酚酯</h3><p>骁悉</p><div class="dose"><strong>0.5</strong><span>g · 每日两次</span></div><dl><div><dt>当前阶段</dt><dd>2025.09.03 至今</dd></div><div><dt>最近调整</dt><dd>10 个月前 · 开始用药</dd></div></dl><div class="card-actions"><button>调整剂量</button><button class="icon-button small" aria-label="吗替麦考酚酯更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
+              <article class="med-card" data-medication-color="#EADDF7"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#EADDF7" title="标识颜色：淡紫色"><i data-lucide="syringe"></i></span><span class="status-badge neutral">治疗中</span></div><h3>贝利尤单抗</h3><p>倍力腾</p><div class="dose"><strong>200</strong><span>mg · 每 4 周</span></div><dl><div><dt>下次给药</dt><dd>2026.07.24</dd></div><div><dt>已完成</dt><dd>5 次实际给药</dd></div></dl><div class="card-actions"><button>记录给药</button><button class="icon-button small" aria-label="贝利尤单抗更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
+            </div>
+          </section>
+
+          <article class="timeline-card panda-card">
+            <div class="chart-header"><div><p class="section-kicker">TIMELINE</p><h2>历年用药时间轴</h2><p>每个长条代表独立阶段，节点代表实际发生的治疗。</p></div><div class="segmented"><button>6 个月</button><button>1 年</button><button class="is-active">2 年</button><button>5 年</button><button>全部</button></div></div>
+            <div class="timeline-filter"><button class="is-active">全部</button><button>糖皮质激素</button><button>免疫抑制剂</button><button>抗疟药</button><button>生物制剂 / 单抗</button><button>输注 / 冲击</button><button>辅助用药</button></div>
+            <div class="timeline-scroll">
+              <div class="timeline-axis"><span></span><b>2024</b><b>2025</b><b>2026</b></div>
+              <div class="timeline-row" data-medication-name="泼尼松" style="--med-color:#F9DCE5"><strong>泼尼松<small>糖皮质激素</small></strong><div class="timeline-track"><span class="stage s1">30 mg</span><span class="stage s2">20 mg</span><span class="stage s3">15 mg</span></div></div>
+              <div class="timeline-row" data-medication-name="吗替麦考酚酯" style="--med-color:#DDEBFF"><strong>吗替麦考酚酯<small>免疫抑制剂</small></strong><div class="timeline-track"><span class="stage s4">0.5 g · 每日两次</span></div></div>
+              <div class="timeline-row" data-medication-name="贝利尤单抗" style="--med-color:#EADDF7"><strong>贝利尤单抗<small>生物制剂</small></strong><div class="timeline-track timeline-nodes"><i style="left:52%"></i><i style="left:62%"></i><i style="left:72%"></i><i style="left:82%"></i><i style="left:92%"></i></div></div>
+              <div class="timeline-row" data-medication-name="丙种球蛋白" style="--med-color:#FFF1C7"><strong>丙种球蛋白<small>输注治疗</small></strong><div class="timeline-track treatment-node"><i data-lucide="diamond"></i><span>2026.03.12 · 5 日疗程</span></div></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="app-view" id="profileView" data-view-panel="profile">
+          <div class="page-heading profile-heading">
+            <div><p class="eyebrow">ACCOUNT & DATA</p><h1>我的</h1><p>管理账号、同步状态和属于你的全部疾病记录。</p></div>
+          </div>
+          <div class="profile-layout">
+            <aside class="profile-summary panda-card"><div class="profile-avatar" data-profile-avatar>锦</div><h2 data-profile-nickname>韩锦泽</h2><p data-profile-username>hanjinze</p><span class="status-badge neutral"><i data-lucide="shield-check"></i>用户名密码账号</span><dl><div><dt>加入时间</dt><dd data-profile-created>2024.08.16</dd></div><div><dt>已记录</dt><dd data-profile-summary>36 项检查 · 7 种药物</dd></div></dl></aside>
+            <div class="settings-sections">
+              <section class="settings-group"><div class="settings-title"><p class="section-kicker">PROFILE</p><h2>个人信息</h2></div><div class="setting-row"><span><strong>昵称</strong><small>用于界面中的称呼</small></span><span data-profile-nickname>韩锦泽</span><button data-account-action="nickname">修改</button></div><div class="setting-row"><span><strong>用户名</strong><small>用于账号登录</small></span><span data-profile-username>hanjinze</span><button data-account-action="username">修改</button></div><div class="setting-row"><span><strong>登录密码</strong><small>建议定期更换密码</small></span><span>已设置</span><button data-account-action="password">修改</button></div><div class="setting-row"><span><strong>登录方式</strong><small>使用用户名和密码验证身份</small></span><span>用户名 + 密码</span></div></section>
+              <section class="settings-group"><div class="settings-title"><p class="section-kicker">SYNC</p><h2>云端同步</h2></div><div class="sync-panel"><span class="sync-icon"><i data-lucide="cloud"></i></span><div><strong id="syncTitle">全部数据已同步</strong><small id="syncDescription">最近同步于今天 09:42 · 当前网络正常</small></div><button class="button secondary" id="manualSyncButton"><i data-lucide="refresh-cw"></i>重新同步</button></div></section>
+              <section class="settings-group"><div class="settings-title"><p class="section-kicker">DATA</p><h2>数据管理</h2></div><div class="data-actions"><button data-data-action="export-json"><i data-lucide="file-json"></i><span><strong>导出完整备份</strong><small>包含指标、用药与个人设置的 JSON 文件</small></span><i data-lucide="download"></i></button><button data-data-action="export-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出指标 CSV</strong><small>导出全部历史化验结果和参考范围</small></span><i data-lucide="download"></i></button><button data-data-action="export-med-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出用药 CSV</strong><small>导出阶段、给药和个人观察记录</small></span><i data-lucide="download"></i></button><button data-data-action="import-json"><i data-lucide="rotate-ccw"></i><span><strong>从备份恢复</strong><small>导入之前导出的 JSON 备份文件</small></span><i data-lucide="chevron-right"></i></button></div><input type="file" id="backupFileInput" accept="application/json,.json" hidden /><div class="data-delete-actions"><button data-data-action="clear-indicators"><i data-lucide="trash-2"></i>删除全部指标数据</button><button data-data-action="clear-medications"><i data-lucide="trash-2"></i>删除全部用药数据</button></div></section>
+              <section class="settings-group danger-zone"><div class="settings-title"><p class="section-kicker">DANGER ZONE</p><h2>账号操作</h2></div><div class="setting-row"><span><strong>退出登录</strong><small>云端数据不会被删除</small></span><button data-account-action="logout">退出</button></div><div class="setting-row"><span><strong>注销账号</strong><small>永久删除 Supabase 账号及全部云端数据，此操作无法撤销</small></span><button class="danger-text" data-account-action="delete-account">注销</button></div></section>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="移动端主导航">
+        <span class="bottom-nav-thumb" aria-hidden="true"></span>
+        <button class="nav-item is-active" data-view="indicators"><i data-lucide="activity"></i><span>指标</span></button>
+        <button class="nav-item" data-view="medications"><i data-lucide="pill"></i><span>用药</span></button>
+        <button class="nav-item" data-view="profile"><i data-lucide="user-round"></i><span>我的</span></button>
+      </nav>
+    </div>
+
+    <div class="modal" id="checkModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="checkModalTitle">
+      <div class="modal-backdrop" data-close-modal></div><div class="modal-panel wide">
+        <div class="modal-header"><div><p class="section-kicker">NEW LAB REPORT</p><h2 id="checkModalTitle">新增检查</h2><p>只填写本次实际检查的项目，未填写结果的项目不会保存。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
+        <form id="checkForm">
+          <div class="form-grid report-info"><label><span>检查日期 *</span><input name="date" type="date" required value="2026-07-17" /></label><label><span>医院</span><input name="hospital" value="上海交通大学医学院附属仁济医院" /></label></div>
+          <div class="check-category-tabs" role="tablist" aria-label="检查指标分类">
+            <button type="button" class="check-category-tab is-active" data-check-category="activity" role="tab" aria-selected="true">炎症 / 活动指标</button>
+            <button type="button" class="check-category-tab" data-check-category="kidney" role="tab" aria-selected="false">肾脏风险</button>
+            <button type="button" class="check-category-tab" data-check-category="blood" role="tab" aria-selected="false">血象指标</button>
+            <button type="button" class="check-category-tab" data-check-category="other" role="tab" aria-selected="false">其他指标</button>
+          </div>
+          <p class="check-category-hint">已为你带入默认单位与参考范围，只填写本次实际检查的项目。</p>
+          <div class="check-category-panel is-active" data-check-panel="activity" role="tabpanel">
+            <div class="lab-entry-list">
+              <div class="lab-entry"><strong>C3</strong><label><span>结果</span><input name="value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="unit" value="g/L" /></label><label><span>参考下限</span><input name="low" type="number" step="0.01" value="0.79" /></label><label><span>参考上限</span><input name="high" type="number" step="0.01" value="1.52" /></label></div>
+              <div class="lab-entry"><strong>C4</strong><label><span>结果</span><input name="c4Value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="c4Unit" value="g/L" /></label><label><span>参考下限</span><input name="c4Low" type="number" value="0.16" /></label><label><span>参考上限</span><input name="c4High" type="number" value="0.38" /></label></div>
+              <div class="lab-entry"><strong>抗 dsDNA</strong><label><span>结果</span><input name="dsdnaValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="dsdnaUnit" value="IU/mL" /></label><label><span>参考下限</span><input name="dsdnaLow" type="number" value="0" /></label><label><span>参考上限</span><input name="dsdnaHigh" type="number" value="100" /></label></div>
+              <div class="lab-entry"><strong>血沉</strong><label><span>结果</span><input name="esrValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="esrUnit" value="mm/h" /></label><label><span>参考下限</span><input name="esrLow" type="number" value="0" /></label><label><span>参考上限</span><input name="esrHigh" type="number" value="20" /></label></div>
+              <div class="lab-entry"><strong>C 反应蛋白</strong><label><span>结果</span><input name="crpValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="crpUnit" value="mg/L" /></label><label><span>参考下限</span><input name="crpLow" type="number" value="0" /></label><label><span>参考上限</span><input name="crpHigh" type="number" value="8" /></label></div>
+            </div>
+          </div>
+          <div class="check-category-panel" data-check-panel="kidney" role="tabpanel" hidden>
+            <div class="lab-entry-list">
+              <div class="lab-entry"><strong>24 小时尿蛋白</strong><label><span>结果</span><input name="protein24Value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="protein24Unit" value="g/24h" /></label><label><span>参考下限</span><input name="protein24Low" type="number" value="0" /></label><label><span>参考上限</span><input name="protein24High" type="number" value="0.15" /></label></div>
+              <div class="lab-entry"><strong>尿蛋白肌酐比</strong><label><span>结果</span><input name="upcrValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="upcrUnit" value="mg/g" /></label><label><span>参考下限</span><input name="upcrLow" type="number" value="0" /></label><label><span>参考上限</span><input name="upcrHigh" type="number" value="150" /></label></div>
+              <div class="lab-entry"><strong>eGFR</strong><label><span>结果</span><input name="egfrValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="egfrUnit" value="mL/min" /></label><label><span>参考下限</span><input name="egfrLow" type="number" value="90" /></label><label><span>参考上限</span><input name="egfrHigh" type="number" value="130" /></label></div>
+              <div class="lab-entry"><strong>血肌酐</strong><label><span>结果</span><input name="creatinineValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="creatinineUnit" value="μmol/L" /></label><label><span>参考下限</span><input name="creatinineLow" type="number" value="41" /></label><label><span>参考上限</span><input name="creatinineHigh" type="number" value="73" /></label></div>
+            </div>
+          </div>
+          <div class="check-category-panel" data-check-panel="blood" role="tabpanel" hidden>
+            <div class="lab-entry-list">
+              <div class="lab-entry"><strong>白细胞</strong><label><span>结果</span><input name="wbcValue" type="number" step="0.01" placeholder="0.00" /></label><label><span>单位</span><input name="wbcUnit" value="×10⁹/L" /></label><label><span>参考下限</span><input name="wbcLow" type="number" value="3.5" /></label><label><span>参考上限</span><input name="wbcHigh" type="number" value="9.5" /></label></div>
+              <div class="lab-entry"><strong>血红蛋白</strong><label><span>结果</span><input name="hbValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="hbUnit" value="g/L" /></label><label><span>参考下限</span><input name="hbLow" type="number" value="115" /></label><label><span>参考上限</span><input name="hbHigh" type="number" value="150" /></label></div>
+              <div class="lab-entry"><strong>血小板</strong><label><span>结果</span><input name="plateletsValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="plateletsUnit" value="×10⁹/L" /></label><label><span>参考下限</span><input name="plateletsLow" type="number" value="125" /></label><label><span>参考上限</span><input name="plateletsHigh" type="number" value="350" /></label></div>
+            </div>
+          </div>
+          <div class="check-category-panel" data-check-panel="other" role="tabpanel" hidden>
+            <div class="lab-entry-list">
+              <div class="lab-entry"><strong>IgG</strong><label><span>结果</span><input name="iggValue" type="number" step="0.01" placeholder="0.00" /></label><label><span>单位</span><input name="iggUnit" value="g/L" /></label><label><span>参考下限</span><input name="iggLow" type="number" value="7" /></label><label><span>参考上限</span><input name="iggHigh" type="number" value="16" /></label></div>
+            </div>
+            <button type="button" class="add-custom-lab" data-open-modal="indicatorModal"><i data-lucide="plus"></i><span><strong>添加自定义指标</strong><small>创建后会加入“其他指标”分类</small></span><i data-lucide="arrow-up-right"></i></button>
+          </div>
+          <label class="textarea-field"><span>检查备注</span><textarea name="notes" maxlength="300" placeholder="记录医生说明、检查时的身体状况等"></textarea><small>0 / 300</small></label>
+          <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="submit" class="button primary">保存本次检查</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal compact-modal" id="quickModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="quickModalTitle">
+      <div class="modal-backdrop" data-close-modal></div><div class="modal-panel compact">
+        <div class="modal-header"><div><p class="section-kicker">QUICK ENTRY</p><h2 id="quickModalTitle">添加 C3 数据</h2><p>快速记录当前指标，不影响默认设置。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
+        <form id="quickForm"><div class="form-grid one-column"><label><span>检查日期 *</span><input name="date" type="date" required value="2026-07-17" /></label><div class="inline-fields"><label><span>检查结果 *</span><input name="value" type="number" step="0.001" required placeholder="0.000" /></label><label><span>单位</span><input name="unit" value="g/L" /></label></div><div class="inline-fields"><label><span>参考范围下限</span><input name="low" type="number" step="0.01" value="0.79" /></label><label><span>参考范围上限</span><input name="high" type="number" step="0.01" value="1.52" /></label></div><label><span>医院</span><input name="hospital" placeholder="输入医院名称" /></label><label><span>备注</span><textarea name="notes" placeholder="选填"></textarea></label></div><div class="modal-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="submit" class="button primary">保存数据</button></div></form>
+      </div>
+    </div>
+
+    <div class="modal compact-modal" id="indicatorModal" aria-hidden="true" role="dialog" aria-modal="true"><div class="modal-backdrop" data-close-modal></div><div class="modal-panel compact"><div class="modal-header"><div><p class="section-kicker">CUSTOM INDICATOR</p><h2>添加自定义指标</h2><p>创建后将自动加入所选分类。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div><form id="indicatorForm"><div class="form-grid one-column"><label><span>指标名称 *</span><input name="name" required placeholder="例如：免疫球蛋白 G" /></label><label><span>指标简称</span><input name="shortName" placeholder="例如：IgG" /></label><label><span>所属分类</span><select name="category"><option value="activity">炎症 / 活动指标</option><option value="kidney">肾脏风险</option><option value="blood">血象指标</option><option value="other">其他指标</option></select></label><label><span>默认单位</span><input name="unit" placeholder="例如：g/L" /></label><div class="inline-fields"><label><span>参考下限</span><input name="low" type="number" step="0.001" /></label><label><span>参考上限</span><input name="high" type="number" step="0.001" /></label></div><label><span>备注</span><textarea name="notes" placeholder="选填"></textarea></label><p class="form-error" data-form-error></p></div><div class="modal-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="submit" class="button primary">创建指标</button></div></form></div></div>
+
+    <div class="modal compact-modal" id="medicationModal" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-panel compact">
+        <div class="modal-header"><div><p class="section-kicker">NEW MEDICATION</p><h2>选择记录类型</h2><p>不同治疗方式会使用适合它的记录结构。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
+        <div class="record-types">
+          <button type="button" data-medication-type="longTerm"><span><i data-lucide="pill"></i></span><div><strong>长期用药</strong><small>口服药与持续使用的注射药物</small></div><i data-lucide="chevron-right"></i></button>
+          <button type="button" data-medication-type="biologic"><span><i data-lucide="syringe"></i></span><div><strong>单抗或生物制剂</strong><small>同时记录治疗方案与实际给药</small></div><i data-lucide="chevron-right"></i></button>
+          <button type="button" data-medication-type="infusion"><span><i data-lucide="droplets"></i></span><div><strong>输注 / 冲击治疗</strong><small>短期静脉治疗与疗程记录</small></div><i data-lucide="chevron-right"></i></button>
+          <button type="button" data-medication-type="other"><span><i data-lucide="clipboard-plus"></i></span><div><strong>其他治疗</strong><small>建立自定义治疗记录</small></div><i data-lucide="chevron-right"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="medicationFormModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="medicationFormTitle">
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-panel medication-form-panel">
+        <div class="modal-header"><div><button type="button" class="modal-back-button" id="backToMedicationTypes"><i data-lucide="arrow-left"></i>返回选择类型</button><p class="section-kicker" id="medicationFormKicker">LONG-TERM MEDICATION</p><h2 id="medicationFormTitle">添加长期用药</h2><p id="medicationFormDescription">剂量或频率变化时，将自动形成新的用药阶段。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
+        <form id="medicationDetailForm">
+          <input type="hidden" name="recordType" id="medicationRecordType" />
+          <div id="medicationFormFields"></div>
+          <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="submit" class="button primary" id="saveMedicationRecord">保存用药记录</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal compact-modal nested-modal" id="labItemModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="labItemModalTitle">
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-panel compact lab-item-panel">
+        <div class="modal-header"><div><p class="section-kicker">SELECT LAB ITEMS</p><h2 id="labItemModalTitle">添加检查项目</h2><p>选择本次实际检查的项目，加入后再填写结果。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
+        <label class="item-picker-search"><i data-lucide="search"></i><input id="labItemSearch" type="search" placeholder="搜索指标名称或简称" autocomplete="off" /></label>
+        <div class="lab-item-groups" id="labItemGroups">
+          <section class="lab-item-group" data-group="炎症 / 活动指标"><h3>炎症 / 活动指标</h3>
+            <label class="lab-item-option is-added" data-search="C3 补体 C3"><input type="checkbox" disabled /><span><strong>C3</strong><small>补体 C3 · g/L</small></span><em>已添加</em></label>
+            <label class="lab-item-option is-added" data-search="C4 补体 C4"><input type="checkbox" disabled /><span><strong>C4</strong><small>补体 C4 · g/L</small></span><em>已添加</em></label>
+            <label class="lab-item-option is-added" data-search="抗 dsDNA 抗体"><input type="checkbox" disabled /><span><strong>抗 dsDNA</strong><small>抗 dsDNA 抗体 · IU/mL</small></span><em>已添加</em></label>
+            <label class="lab-item-option" data-key="esr" data-name="血沉" data-unit="mm/h" data-low="0" data-high="20" data-search="血沉 红细胞沉降率"><input type="checkbox" /><span><strong>血沉</strong><small>红细胞沉降率 · mm/h</small></span></label>
+            <label class="lab-item-option" data-key="crp" data-name="C 反应蛋白" data-unit="mg/L" data-low="0" data-high="8" data-search="C 反应蛋白 CRP"><input type="checkbox" /><span><strong>C 反应蛋白</strong><small>C 反应蛋白 · mg/L</small></span></label>
+          </section>
+          <section class="lab-item-group" data-group="肾脏风险"><h3>肾脏风险</h3>
+            <label class="lab-item-option" data-key="protein24" data-name="24 小时尿蛋白" data-unit="g/24h" data-low="0" data-high="0.15" data-search="24 小时尿蛋白定量"><input type="checkbox" /><span><strong>24 小时尿蛋白</strong><small>24 小时尿蛋白定量 · g/24h</small></span></label>
+            <label class="lab-item-option" data-key="upcr" data-name="尿蛋白肌酐比" data-unit="mg/g" data-low="0" data-high="150" data-search="尿蛋白肌酐比 UPCR"><input type="checkbox" /><span><strong>尿蛋白肌酐比</strong><small>尿蛋白肌酐比 · mg/g</small></span></label>
+            <label class="lab-item-option" data-key="egfr" data-name="eGFR" data-unit="mL/min" data-low="90" data-high="130" data-search="eGFR 肾小球滤过率"><input type="checkbox" /><span><strong>eGFR</strong><small>肾小球滤过率 · mL/min</small></span></label>
+            <label class="lab-item-option" data-key="creatinine" data-name="血肌酐" data-unit="μmol/L" data-low="41" data-high="73" data-search="血肌酐 肌酐"><input type="checkbox" /><span><strong>血肌酐</strong><small>血肌酐 · μmol/L</small></span></label>
+          </section>
+          <section class="lab-item-group" data-group="血象指标"><h3>血象指标</h3>
+            <label class="lab-item-option" data-key="wbc" data-name="白细胞" data-unit="×10⁹/L" data-low="3.5" data-high="9.5" data-search="白细胞 白细胞计数 WBC"><input type="checkbox" /><span><strong>白细胞</strong><small>白细胞计数 · ×10⁹/L</small></span></label>
+            <label class="lab-item-option" data-key="hb" data-name="血红蛋白" data-unit="g/L" data-low="115" data-high="150" data-search="血红蛋白 HB"><input type="checkbox" /><span><strong>血红蛋白</strong><small>血红蛋白 · g/L</small></span></label>
+            <label class="lab-item-option" data-key="platelets" data-name="血小板" data-unit="×10⁹/L" data-low="125" data-high="350" data-search="血小板 血小板计数 PLT"><input type="checkbox" /><span><strong>血小板</strong><small>血小板计数 · ×10⁹/L</small></span></label>
+          </section>
+          <section class="lab-item-group" data-group="其他指标"><h3>其他指标</h3>
+            <label class="lab-item-option" data-key="igg" data-name="IgG" data-unit="g/L" data-low="7" data-high="16" data-search="IgG 免疫球蛋白 G"><input type="checkbox" /><span><strong>IgG</strong><small>免疫球蛋白 G · g/L</small></span></label>
+          </section>
+          <div class="picker-empty" id="labItemEmpty"><i data-lucide="search-x"></i><strong>没有匹配的指标</strong><small>可以先在指标页面创建自定义指标</small></div>
+        </div>
+        <div class="modal-actions picker-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="button" class="button primary" id="addSelectedLabItems" disabled>添加所选项目</button></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status"><span><i data-lucide="check"></i></span><div><strong>保存成功</strong><small>趋势图和最新结果已同步更新</small></div><button class="icon-button small" aria-label="关闭提示"><i data-lucide="x"></i></button></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase-config.js?v=20260717-supabase"></script>
+    <script src="./supabase-client.js?v=20260717-username-auth"></script>
+    <script src="./app.js?v=20260717-supabase"></script>
+    <script src="./features.js?v=20260717-numeric-username"></script>
+    <script src="./controls.js?v=20260717-username-password"></script>
+  </body>
+</html>
