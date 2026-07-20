@@ -193,14 +193,14 @@
       <div class="modal-backdrop" data-close-modal></div><div class="modal-panel wide">
         <div class="modal-header"><div><p class="section-kicker">NEW LAB REPORT</p><h2 id="checkModalTitle">新增检查</h2><p>只填写本次实际检查的项目，未填写结果的项目不会保存。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
         <form id="checkForm">
-          <div class="form-grid report-info"><label><span>检查日期 *</span><input name="date" type="date" required value="2026-07-17" /></label><label><span>医院</span><input name="hospital" value="上海交通大学医学院附属仁济医院" /></label></div>
+          <div class="form-grid report-info"><label><span>检查日期</span><input name="date" type="date" value="2026-07-17" /></label><label><span>医院</span><input name="hospital" value="上海交通大学医学院附属仁济医院" /></label></div>
           <div class="check-category-tabs" role="tablist" aria-label="检查指标分类">
             <button type="button" class="check-category-tab is-active" data-check-category="activity" role="tab" aria-selected="true">炎症 / 活动指标</button>
             <button type="button" class="check-category-tab" data-check-category="kidney" role="tab" aria-selected="false">肾脏风险</button>
             <button type="button" class="check-category-tab" data-check-category="blood" role="tab" aria-selected="false">血象指标</button>
             <button type="button" class="check-category-tab" data-check-category="other" role="tab" aria-selected="false">其他指标</button>
           </div>
-          <p class="check-category-hint">已为你带入默认单位与参考范围，只填写本次实际检查的项目。</p>
+          <p class="check-category-hint">所有字段均可留空；只保存已填写结果的指标，日期未填时按当天记录。</p>
           <div class="check-category-panel is-active" data-check-panel="activity" role="tabpanel">
             <div class="lab-entry-list">
               <div class="lab-entry"><strong>C3</strong><label><span>结果</span><input name="value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="unit" value="g/L" /></label><label><span>参考下限</span><input name="low" type="number" step="0.01" value="0.79" /></label><label><span>参考上限</span><input name="high" type="number" step="0.01" value="1.52" /></label></div>
