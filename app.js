@@ -202,7 +202,38 @@ $('#medicationDetailForm').addEventListener("change",event=>{if(event.target.nam
 $('#medicationSwitch').addEventListener("change",event=>$('#medicationLanes').classList.toggle("is-hidden",!event.target.checked));
 $$('.theme-toggle').forEach(button=>button.addEventListener("click",()=>{const root=document.documentElement,dark=root.dataset.theme!=="dark";root.dataset.theme=dark?"dark":"light";$$('.theme-toggle').forEach(b=>b.innerHTML=`<i data-lucide="${dark?"sun":"moon"}"></i>`);if(window.lucide)lucide.createIcons();}));
 $('#quickForm').addEventListener("submit",event=>{event.preventDefault();saveQuick(event.currentTarget)});
-$('#checkForm').addEventListener("submit",event=>{event.preventDefault();const fd=new FormData(event.currentTarget),map={value:["activity","c3","unit","low","high"],c4Value:["activity","c4","c4Unit","c4Low","c4High"],dsdnaValue:["activity","dsdna","dsdnaUnit","dsdnaLow","dsdnaHigh"],esrValue:["activity","esr","esrUnit","esrLow","esrHigh"],crpValue:["activity","crp","crpUnit","crpLow","crpHigh"],protein24Value:["kidney","protein24","protein24Unit","protein24Low","protein24High"],upcrValue:["kidney","upcr","upcrUnit","upcrLow","upcrHigh"],egfrValue:["kidney","egfr","egfrUnit","egfrLow","egfrHigh"],creatinineValue:["kidney","creatinine","creatinineUnit","creatinineLow","creatinineHigh"],wbcValue:["blood","wbc","wbcUnit","wbcLow","wbcHigh"],hbValue:["blood","hb","hbUnit","hbLow","hbHigh"],plateletsValue:["blood","platelets","plateletsUnit","plateletsLow","plateletsHigh"],iggValue:["other","igg","iggUnit","iggLow","iggHigh"]};let firstSaved=null,savedCount=0;Object.entries(map).forEach(([field,[category,key,unitField,lowField,highField]])=>{const raw=fd.get(field);if(raw===""||raw===null)return;const item=indicatorData[category].items[key];if(!item)return;const unit=fd.get(unitField)||item.unit,low=fd.get(lowField)===""?item.low:Number(fd.get(lowField)),high=fd.get(highField)===""?item.high:Number(fd.get(highField));item.max=Math.max(item.max||0,high*1.2,Number(raw)*1.2);item.records.push([fd.get("date"),Number(raw),fd.get("hospital")||"未填写医院",fd.get("notes")||"",unit,low,high,item.name]);item.records.sort((a,b)=>a[0].localeCompare(b[0]));if(!firstSaved)firstSaved=[category,key];savedCount++;});if(firstSaved){[currentCategory,currentIndicator]=firstSaved;$$('.category-tab').forEach(tab=>{const active=tab.dataset.category===currentCategory;tab.classList.toggle('is-active',active);tab.setAttribute('aria-selected',String(active));});renderIndicator();window.dispatchEvent(new CustomEvent("sle:data-changed"));closeModal(event.currentTarget.closest(".modal"));event.currentTarget.reset();showToast("检查记录已保存",`已更新 ${savedCount} 个指标`);}else{showToast("没有可保存的结果","请至少填写一个检查结果");}});
+$('#checkForm').addEventListener("submit",event=>{
+  event.preventDefault();
+  const form=event.currentTarget,fd=new FormData(form);
+  const map={value:["activity","c3","unit","low","high"],c4Value:["activity","c4","c4Unit","c4Low","c4High"],dsdnaValue:["activity","dsdna","dsdnaUnit","dsdnaLow","dsdnaHigh"],esrValue:["activity","esr","esrUnit","esrLow","esrHigh"],crpValue:["activity","crp","crpUnit","crpLow","crpHigh"],protein24Value:["kidney","protein24","protein24Unit","protein24Low","protein24High"],upcrValue:["kidney","upcr","upcrUnit","upcrLow","upcrHigh"],egfrValue:["kidney","egfr","egfrUnit","egfrLow","egfrHigh"],creatinineValue:["kidney","creatinine","creatinineUnit","creatinineLow","creatinineHigh"],wbcValue:["blood","wbc","wbcUnit","wbcLow","wbcHigh"],hbValue:["blood","hb","hbUnit","hbLow","hbHigh"],plateletsValue:["blood","platelets","plateletsUnit","plateletsLow","plateletsHigh"],iggValue:["other","igg","iggUnit","iggLow","iggHigh"]};
+  const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const recordDate=String(fd.get("date")||"").trim()||today;
+  const optionalNumber=(field,fallback)=>{const raw=fd.get(field);return raw===null||String(raw).trim()===""?fallback:Number(raw);};
+  let firstSaved=null,savedCount=0;
+
+  Object.entries(map).forEach(([field,[category,key,unitField,lowField,highField]])=>{
+    const raw=fd.get(field);
+    if(raw===null||String(raw).trim()==="")return;
+    const value=Number(raw),item=indicatorData[category]?.items[key];
+    if(!item||!Number.isFinite(value))return;
+    const unit=String(fd.get(unitField)||"").trim()||item.unit;
+    const low=optionalNumber(lowField,item.low),high=optionalNumber(highField,item.high);
+    item.max=Math.max(item.max||0,high*1.2,value*1.2);
+    item.records.push([recordDate,value,fd.get("hospital")||"未填写医院",fd.get("notes")||"",unit,low,high,item.name]);
+    item.records.sort((a,b)=>a[0].localeCompare(b[0]));
+    if(!firstSaved)firstSaved=[category,key];
+    savedCount++;
+  });
+
+  if(!firstSaved){showToast("没有可保存的结果","请至少填写一个检查指标的结果");return;}
+  [currentCategory,currentIndicator]=firstSaved;
+  $$('.category-tab').forEach(tab=>{const active=tab.dataset.category===currentCategory;tab.classList.toggle('is-active',active);tab.setAttribute('aria-selected',String(active));});
+  renderIndicator();
+  window.dispatchEvent(new CustomEvent("sle:data-changed"));
+  closeModal(form.closest(".modal"));
+  form.reset();
+  showToast("检查记录已保存",`已记录 ${savedCount} 个已填写指标`);
+});
 $('#indicatorForm').addEventListener("submit",event=>event.preventDefault());
 $('#medicationDetailForm').addEventListener("submit",event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));addMedicationRecord(data);window.dispatchEvent(new CustomEvent("sle:medication-added",{detail:data}));closeModal($('#medicationFormModal'));event.currentTarget.reset();showToast("用药记录已保存",data.recordType==="longTerm"||data.recordType==="biologic"?"已加入当前用药并创建首个阶段":"已加入历年用药时间轴");});
 $$('.lab-item-option input:not(:disabled)').forEach(input=>input.addEventListener("change",updateLabItemSelection));
