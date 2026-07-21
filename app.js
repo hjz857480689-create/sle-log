@@ -47,16 +47,31 @@ function renderPicker(){
 
 function getStatus(value,item){ if(value<item.low) return ["偏低","warning","low"]; if(value>item.high) return ["偏高","error","low"]; return ["范围内","success","normal"]; }
 
+function renderReferenceRail(value,low,high,itemMax){
+  const numbers=[value,low,high,itemMax].map(Number).filter(Number.isFinite);
+  let scaleMin=Math.min(...numbers,0),scaleMax=Math.max(...numbers,1);
+  if(scaleMin<0)scaleMin*=1.12;
+  if(scaleMax>0)scaleMax*=scaleMax===Number(itemMax)?1:1.12;
+  if(scaleMax<=scaleMin)scaleMax=scaleMin+1;
+  const span=scaleMax-scaleMin,position=number=>Math.min(100,Math.max(0,(Number(number)-scaleMin)/span*100));
+  const rangeStart=position(Math.min(low,high)),rangeEnd=position(Math.max(low,high));
+  const normalRange=$(".normal-range"),labels=$$(".rail-labels span");
+  if(normalRange){normalRange.style.left=`${rangeStart}%`;normalRange.style.right=`${100-rangeEnd}%`;}
+  if(Number.isFinite(Number(value)))$("#valuePin").style.left=`${Math.min(98,Math.max(2,position(value)))}%`;
+  if(labels[0])labels[0].textContent=formatNumber(scaleMin);
+  if(labels.at(-1))labels.at(-1).textContent=formatNumber(scaleMax);
+}
+
 function renderIndicator(){
   renderPicker();
   const item=currentItem();if(!item)return;
   const latest=item.records.at(-1), previous=item.records.at(-2);
   $("#indicatorFullName").textContent=item.name;$("#historyCount").textContent=item.records.length;$("#rangeLabel").textContent=`参考范围 ${formatNumber(item.low)}-${formatNumber(item.high)}`;$("#chartUnit").textContent=item.unit;$("#trendChart").setAttribute("aria-label",`${item.name}长期趋势图`);$("#quickModalTitle").textContent=`添加 ${item.short} 数据`;const units=new Set(item.records.map(record=>record[4]||item.unit));$("#unitMismatchWarning").hidden=units.size<2;
-  if(!latest){$("#latestValue").textContent="暂无";$("#latestUnit").textContent=item.unit;$("#statusBadge").className="status-badge neutral";$("#statusBadge").textContent="暂无数据";$("#changeLine").innerHTML="<span>添加第一条检查结果后，这里会显示变化情况。</span>";$("#valuePin").style.display="none";renderChart();renderHistory();if(window.lucide)lucide.createIcons();return;}
+  if(!latest){$("#latestValue").textContent="暂无";$("#latestUnit").textContent=item.unit;$("#statusBadge").className="status-badge neutral";$("#statusBadge").textContent="暂无数据";$("#changeLine").innerHTML="<span>添加第一条检查结果后，这里会显示变化情况。</span>";$("#valuePin").style.display="none";renderReferenceRail(NaN,item.low,item.high,item.max);renderChart();renderHistory();if(window.lucide)lucide.createIcons();return;}
   $("#valuePin").style.display="block";
   const latestUnit=latest[4]||item.unit,latestLow=latest[5]??item.low,latestHigh=latest[6]??item.high,previousUnit=previous?.[4]||item.unit,comparable=!previous||previousUnit===latestUnit,delta=previous&&comparable?latest[1]-previous[1]:0,status=getStatus(latest[1],{low:latestLow,high:latestHigh});
   $("#indicatorFullName").textContent=item.name; $("#latestValue").textContent=formatNumber(latest[1]); $("#latestUnit").textContent=latestUnit;$("#rangeLabel").textContent=`参考范围 ${formatNumber(latestLow)}-${formatNumber(latestHigh)}`;
-  $("#statusBadge").className=`status-badge ${status[1]}`; $("#statusBadge").textContent=status[0]; $("#valuePin").style.left=`${Math.min(98,Math.max(2,latest[1]/item.max*100))}%`;
+  $("#statusBadge").className=`status-badge ${status[1]}`; $("#statusBadge").textContent=status[0]; renderReferenceRail(latest[1],latestLow,latestHigh,item.max);
   const direction=delta>=0?"上升":"下降"; $("#changeLine").innerHTML=previous&&!comparable?`<span class="trend-up"><i data-lucide="triangle-alert"></i>与上次单位不同，暂不计算变化</span><span>${formatLongDate(latest[0])}</span>`:`<span class="trend-up"><i data-lucide="trending-${delta>=0?"up":"down"}"></i>${previous?`较上次${direction} ${formatNumber(Math.abs(delta))} ${latestUnit}`:"首条检查记录"}</span><span>${formatLongDate(latest[0])}</span>`;
   renderChart(); renderHistory(); if(window.lucide) lucide.createIcons();
 }
@@ -67,10 +82,10 @@ function filteredRecords(records){
 }
 
 function renderChart(){
-  const item=currentItem(), records=filteredRecords(item.records), svg=$("#trendChart"), mobile=window.matchMedia("(max-width: 767px)").matches,wrapWidth=$('.chart-wrap')?.clientWidth||0; const W=mobile?Math.max(280,wrapWidth):960,H=mobile?230:300,pad=mobile?{l:38,r:10,t:14,b:34}:{l:44,r:18,t:18,b:38}, plotW=W-pad.l-pad.r, plotH=H-pad.t-pad.b;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  const item=currentItem(), records=filteredRecords(item.records), svg=$("#trendChart"), mobile=window.matchMedia("(max-width: 767px)").matches,wrapWidth=$('.chart-wrap')?.clientWidth||0; const W=mobile?Math.max(280,wrapWidth):960,H=mobile?230:300,pad=mobile?{l:38,r:10,t:14,b:34}:{l:44,r:18,t:18,b:38};let plotW=W-pad.l-pad.r;const plotH=H-pad.t-pad.b;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("preserveAspectRatio","xMidYMid meet");
   if(!records.length){const emptyTop=H*.26,emptyHeight=H*.4;svg.innerHTML=`<rect class="range-area" x="${pad.l}" y="${emptyTop}" width="${plotW}" height="${emptyHeight}" rx="8"/><text class="axis-label" x="${pad.l+plotW/2}" y="${emptyTop+emptyHeight/2-7}" text-anchor="middle">暂无趋势数据</text><text class="axis-label" x="${pad.l+plotW/2}" y="${emptyTop+emptyHeight/2+14}" text-anchor="middle">添加检查结果后自动生成曲线</text>`;return;}
   const lowDate=new Date(`${records[0][0]}T00:00:00`).getTime(), highDate=new Date(`${records.at(-1)[0]}T00:00:00`).getTime(), dateSpan=Math.max(1,highDate-lowDate);
-  const yMax=Math.max(item.max,...records.map(r=>r[1]))*1.08, x=v=>pad.l+(new Date(`${v}T00:00:00`).getTime()-lowDate)/dateSpan*plotW, y=v=>pad.t+(1-v/yMax)*plotH;
+  const yMax=Math.max(item.max,...records.map(r=>r[1]))*1.08;if(mobile){pad.l=Math.min(76,Math.max(38,16+formatNumber(yMax).length*6));plotW=W-pad.l-pad.r;}const x=v=>pad.l+(new Date(`${v}T00:00:00`).getTime()-lowDate)/dateSpan*plotW, y=v=>pad.t+(1-v/yMax)*plotH;
   let html=""; for(let i=0;i<5;i++){const yy=pad.t+i*plotH/4,val=yMax*(1-i/4);html+=`<line class="grid-line" x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}"/><text class="axis-label" x="${pad.l-10}" y="${yy+4}" text-anchor="end">${formatNumber(val)}</text>`;}
   const rangeTop=y(item.high),rangeBottom=y(item.low); html+=`<rect class="range-area" x="${pad.l}" y="${rangeTop}" width="${plotW}" height="${Math.max(2,rangeBottom-rangeTop)}" rx="3"/>`;
   const pts=records.map(r=>[x(r[0]),y(r[1]),r]); html+=`<path class="trend-path" d="${pts.map((p,i)=>`${i?"L":"M"}${p[0]},${p[1]}`).join(" ")}"/>`;

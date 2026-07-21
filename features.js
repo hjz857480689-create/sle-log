@@ -125,9 +125,12 @@
   let pendingConfirm = null;
   let selectedMedication = "";
   let currentMedicationFilter = "active";
+  let currentTimelineFilter = "全部";
+  let currentTimelineRange = "2 年";
 
   function persist() {
     state.indicators = clone(indicatorData);
+    renderMedicationTimeline();
     if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify(state));
     else if (cloud?.configured && cloudUser) cloud.queueSave(state);
     updateProfileUI();
@@ -181,6 +184,7 @@
     state.deletedMedicationNames.forEach(name => removeMedicationFromUI(name));
     state.addedMedicationRecords.filter(record => !state.deletedMedicationNames.includes(record.name)).forEach(record => addMedicationRecord(record));
   }
+  renderMedicationTimeline();
   refreshMedicationCardStates();
   renderIndicator();
   updateProfileUI();
@@ -223,8 +227,8 @@
     const medicationFilter = event.target.closest("[data-medication-filter]"); if (medicationFilter) { currentMedicationFilter = medicationFilter.dataset.medicationFilter; document.querySelectorAll("[data-medication-filter]").forEach(button => { const active = button === medicationFilter; button.classList.toggle("is-active", active); button.setAttribute("aria-selected", String(active)); }); applyMedicationFilter(); return; }
     const medButton = event.target.closest(".med-card button"); if (medButton) { handleMedicationCardButton(medButton); return; }
     const medTask = event.target.closest("[data-med-task]"); if (medTask) { openMedicationTask(medTask.dataset.medTask, selectedMedication); return; }
-    const timelineFilter = event.target.closest(".timeline-filter button"); if (timelineFilter) { timelineFilter.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineFilter)); const label = timelineFilter.textContent.trim(), keywords = { "糖皮质激素": ["糖皮质激素"], "免疫抑制剂": ["免疫抑制剂"], "抗疟药": ["抗疟药"], "生物制剂 / 单抗": ["生物制剂", "单抗"], "输注 / 冲击": ["输注", "冲击"], "辅助用药": ["辅助用药"] }[label]; document.querySelectorAll(".timeline-row").forEach(row => { const category = row.querySelector("small")?.textContent || ""; row.hidden = Boolean(keywords) && !keywords.some(keyword => category.includes(keyword)); }); }
-    const timelineRange = event.target.closest(".timeline-card .segmented button"); if (timelineRange) { timelineRange.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineRange)); const labels = { "6 个月": ["2026.02", "2026.05", "现在"], "1 年": ["2026 Q1", "2026 Q2", "现在"], "2 年": ["2025", "2026", "现在"], "5 年": ["2022", "2024", "2026"], "全部": ["2024", "2025", "2026"] }[timelineRange.textContent.trim()] || ["2024", "2025", "2026"]; document.querySelectorAll(".timeline-axis b").forEach((label, index) => label.textContent = labels[index]); document.querySelector(".timeline-card").dataset.range = timelineRange.textContent.trim(); }
+    const timelineFilter = event.target.closest(".timeline-filter button"); if (timelineFilter) { currentTimelineFilter = timelineFilter.textContent.trim(); timelineFilter.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineFilter)); applyTimelineFilter(); }
+    const timelineRange = event.target.closest(".timeline-card .segmented button"); if (timelineRange) { currentTimelineRange = timelineRange.textContent.trim(); timelineRange.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineRange)); renderMedicationTimeline(); }
   });
 
   document.querySelector("#confirmActionButton").addEventListener("click", () => { const action = pendingConfirm; pendingConfirm = null; closeFeatureModal(document.querySelector("#confirmModal")); if (action) action(); });
@@ -376,6 +380,114 @@
   function medicationColorChoice(value) {
     const colors = window.SLE_MEDICATION_COLORS || [];
     return colors.find(color => color.value.toUpperCase() === String(value || "").toUpperCase()) || colors[0];
+  }
+  function timelineTimestamp(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    if (!match) return NaN;
+    const timestamp = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    const date = new Date(timestamp);
+    return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3]) ? timestamp : NaN;
+  }
+  function timelineDateLabel(timestamp, includeDay = false) {
+    const date = new Date(timestamp), year = date.getUTCFullYear(), month = String(date.getUTCMonth() + 1).padStart(2, "0"), day = String(date.getUTCDate()).padStart(2, "0");
+    return includeDay ? `${year}.${month}.${day}` : `${year}.${month}`;
+  }
+  function timelineSourceGroups() {
+    const groups = new Map();
+    const visibleRecords = state.addedMedicationRecords.filter(record => record?.name && !state.deletedMedicationNames.includes(record.name));
+    visibleRecords.forEach(record => {
+      const group = groups.get(record.name) || { name: record.name, category: record.category || (record.recordType === "biologic" ? "生物制剂 / 单抗" : record.recordType === "infusion" ? "输注 / 冲击" : "其他治疗"), records: [], log: state.medicationLogs[record.name] || {} };
+      group.records.push(record);
+      if (record.category) group.category = record.category;
+      groups.set(record.name, group);
+    });
+    Object.entries(state.medicationLogs || {}).forEach(([name, log]) => {
+      if (state.deletedMedicationNames.includes(name) || groups.has(name) || !isLocalDemo) return;
+      const row = [...document.querySelectorAll(".timeline-row")].find(item => item.dataset.medicationName === name);
+      groups.set(name, { name, category: row?.querySelector("small")?.textContent.trim() || "其他治疗", records: [], log });
+    });
+    return [...groups.values()];
+  }
+  function timelineDatedItems(groups) {
+    const dates = [];
+    groups.forEach(group => {
+      group.records.forEach(record => [record.startDate, record.endDate].forEach(value => { const timestamp = timelineTimestamp(value); if (Number.isFinite(timestamp)) dates.push(timestamp); }));
+      ["stages", "administrations"].forEach(key => (group.log[key] || []).forEach(item => [item.date, item.endDate].forEach(value => { const timestamp = timelineTimestamp(value); if (Number.isFinite(timestamp)) dates.push(timestamp); })));
+    });
+    return dates;
+  }
+  function timelineBounds(groups) {
+    const day = 86400000, now = timelineTimestamp(today()), dates = timelineDatedItems(groups), latest = dates.length ? Math.max(...dates, now) : now;
+    let end = currentTimelineRange === "全部" ? latest : now;
+    let start;
+    if (currentTimelineRange === "6 个月") { const date = new Date(end); date.setUTCMonth(date.getUTCMonth() - 6); start = date.getTime(); }
+    else if (currentTimelineRange === "1 年") { const date = new Date(end); date.setUTCFullYear(date.getUTCFullYear() - 1); start = date.getTime(); }
+    else if (currentTimelineRange === "5 年") { const date = new Date(end); date.setUTCFullYear(date.getUTCFullYear() - 5); start = date.getTime(); }
+    else if (currentTimelineRange === "全部" && dates.length) { const earliest = new Date(Math.min(...dates)); start = Date.UTC(earliest.getUTCFullYear(), 0, 1); }
+    else { const date = new Date(end); date.setUTCFullYear(date.getUTCFullYear() - 2); start = date.getTime(); }
+    if (!Number.isFinite(start) || start >= end) start = end - 365 * day;
+    return { start, end, span: Math.max(day, end - start) };
+  }
+  function timelinePosition(timestamp, bounds) { return (timestamp - bounds.start) / bounds.span * 100; }
+  function timelineAxisHTML(bounds) {
+    const middle = bounds.start + bounds.span / 2;
+    return `<span></span><div class="timeline-axis-labels"><b>${timelineDateLabel(bounds.start)}</b><b>${timelineDateLabel(middle)}</b><b>${currentTimelineRange === "全部" && bounds.end > timelineTimestamp(today()) ? timelineDateLabel(bounds.end) : "现在"}</b></div>`;
+  }
+  function timelineCategoryMatches(category) {
+    const keywords = { "糖皮质激素": ["糖皮质激素"], "免疫抑制剂": ["免疫抑制剂"], "抗疟药": ["抗疟药"], "生物制剂 / 单抗": ["生物制剂", "单抗"], "输注 / 冲击": ["输注", "冲击"], "辅助用药": ["辅助用药"] }[currentTimelineFilter];
+    return !keywords || keywords.some(keyword => String(category || "").includes(keyword));
+  }
+  function applyTimelineFilter() {
+    document.querySelectorAll(".timeline-row").forEach(row => { row.hidden = !timelineCategoryMatches(row.dataset.timelineCategory); });
+    const visible = [...document.querySelectorAll(".timeline-row")].some(row => !row.hidden);
+    document.querySelector(".timeline-empty")?.toggleAttribute("hidden", visible);
+  }
+  function renderMedicationTimeline() {
+    const timeline = document.querySelector(".timeline-scroll"), axis = timeline?.querySelector(".timeline-axis");
+    if (!timeline || !axis) return;
+    const groups = timelineSourceGroups(), bounds = timelineBounds(groups);
+    axis.innerHTML = timelineAxisHTML(bounds);
+    timeline.querySelectorAll(".timeline-row, .timeline-empty").forEach(row => row.remove());
+    const now = timelineTimestamp(today()), rows = [];
+
+    groups.forEach(group => {
+      const log = group.log || {}, stages = [...(log.stages || [])].filter(item => Number.isFinite(timelineTimestamp(item.date))).sort((left, right) => timelineTimestamp(left.date) - timelineTimestamp(right.date));
+      if (!stages.length) group.records.filter(record => ["longTerm", "biologic"].includes(record.recordType) && Number.isFinite(timelineTimestamp(record.startDate))).forEach(record => stages.push({ date: record.startDate, endDate: record.endDate, type: "开始用药", dose: record.dose, unit: record.unit, frequency: record.frequency }));
+      const marks = [];
+      stages.forEach((stage, index) => {
+        const start = timelineTimestamp(stage.date), next = timelineTimestamp(stages[index + 1]?.date), explicitEnd = timelineTimestamp(stage.endDate);
+        if (stage.dose !== undefined && stage.dose !== "") {
+          const end = Number.isFinite(explicitEnd) ? explicitEnd : Number.isFinite(next) ? next : now;
+          if (end >= bounds.start && start <= bounds.end) {
+            const clippedStart = Math.max(start, bounds.start), clippedEnd = Math.min(Math.max(end, start + 86400000), bounds.end), left = Math.max(0, timelinePosition(clippedStart, bounds)), width = Math.max(.65, timelinePosition(clippedEnd, bounds) - left), label = [stage.dose && `${stage.dose} ${stage.unit || ""}`.trim(), stage.frequency].filter(Boolean).join(" · ");
+            marks.push(`<span class="stage timeline-stage" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)} 起 · ${label}`)}">${safeText(label || stage.type || "用药阶段")}</span>`);
+          }
+        } else if (start >= bounds.start && start <= bounds.end) {
+          marks.push(`<i class="timeline-event status-event" style="left:${timelinePosition(start, bounds).toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)} · ${stage.type || "阶段变化"}`)}"><span>${safeText(stage.type || "阶段变化")}</span></i>`);
+        }
+      });
+      (log.administrations || []).filter(item => Number.isFinite(timelineTimestamp(item.date))).sort((left, right) => timelineTimestamp(left.date) - timelineTimestamp(right.date)).forEach(item => {
+        const timestamp = timelineTimestamp(item.date); if (timestamp < bounds.start || timestamp > bounds.end) return;
+        const label = [item.dose && `${item.dose} ${item.unit || ""}`.trim(), item.status].filter(Boolean).join(" · ");
+        marks.push(`<i class="timeline-event administration-event" style="left:${timelinePosition(timestamp, bounds).toFixed(3)}%" title="${safeText(`${timelineDateLabel(timestamp, true)} · ${label || "实际给药"}`)}"></i>`);
+      });
+      group.records.filter(record => !["longTerm", "biologic"].includes(record.recordType)).forEach(record => {
+        const start = timelineTimestamp(record.startDate), end = timelineTimestamp(record.endDate); if (!Number.isFinite(start)) return;
+        const label = record.recordType === "infusion" ? `${record.sessionCount || ""}${record.sessionCount ? " 次 · " : ""}${record.dose || ""} ${record.unit || ""}`.trim() : record.dose || record.category || "治疗记录";
+        if (Number.isFinite(end) && end > start && end >= bounds.start && start <= bounds.end) {
+          const clippedStart = Math.max(start, bounds.start), clippedEnd = Math.min(end, bounds.end), left = timelinePosition(clippedStart, bounds), width = Math.max(.65, timelinePosition(clippedEnd, bounds) - left);
+          marks.push(`<span class="stage timeline-stage treatment-stage" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)}–${timelineDateLabel(end, true)} · ${label}`)}">${safeText(label)}</span>`);
+        } else if (start >= bounds.start && start <= bounds.end) marks.push(`<i class="timeline-event treatment-event" style="left:${timelinePosition(start, bounds).toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)} · ${label}`)}"></i>`);
+      });
+      if (!marks.length) return;
+      const recordColor = group.records.find(record => record.color)?.color, color = state.medicationColors[group.name] || recordColor || "#E4ECF5";
+      const earliest = Math.min(...[...stages.map(item => timelineTimestamp(item.date)), ...(log.administrations || []).map(item => timelineTimestamp(item.date)), ...group.records.map(item => timelineTimestamp(item.startDate))].filter(Number.isFinite));
+      rows.push({ earliest, html: `<div class="timeline-row" data-medication-name="${safeText(group.name)}" data-timeline-category="${safeText(group.category)}" style="--med-color:${safeText(color)}"><strong>${safeText(group.name)}<small>${safeText(group.category)}</small></strong><div class="timeline-track">${marks.join("")}</div></div>` });
+    });
+    rows.sort((left, right) => left.earliest - right.earliest).forEach(row => timeline.insertAdjacentHTML("beforeend", row.html));
+    timeline.insertAdjacentHTML("beforeend", `<div class="timeline-empty" ${rows.length ? "hidden" : ""}><strong>当前时间范围内暂无用药记录</strong><small>切换时间范围，或添加带日期的用药记录。</small></div>`);
+    document.querySelector(".timeline-card").dataset.range = currentTimelineRange;
+    applyTimelineFilter();
   }
   function medicationColorEditorHTML(name) {
     const card = [...document.querySelectorAll(".med-card")].find(item => medicationNameFromCard(item) === name);
