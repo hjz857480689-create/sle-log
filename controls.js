@@ -59,6 +59,15 @@
     "输注 / 冲击治疗": "短期静脉治疗与疗程",
     "辅助用药": "预防和改善伴随症状",
     "其他治疗": "无法归入常规分类的治疗",
+    "片剂": "普通片、肠溶片或缓释片",
+    "胶囊剂": "硬胶囊或软胶囊",
+    "颗粒剂": "颗粒或冲剂",
+    "口服液": "口服溶液或混悬液",
+    "注射液": "需使用注射器给药",
+    "预充式注射剂": "预先装填的一次性注射装置",
+    "冻干粉针剂": "使用前需要溶解配制",
+    "乳膏 / 软膏": "皮肤或局部外用",
+    "滴眼液": "眼部滴用制剂",
     "每日一次": "每天固定使用 1 次",
     "每日两次": "每天固定使用 2 次",
     "每日三次": "每天固定使用 3 次",
@@ -131,10 +140,21 @@
     const button = select.closest(".enhanced-control")?.querySelector(".enhanced-control-button");
     if (!button) return;
     const option = select.selectedOptions[0];
+    const optionIcon = option?.dataset.icon;
+    let leading = button.querySelector(".enhanced-control-option-icon");
+    if (optionIcon && !leading) {
+      button.insertAdjacentHTML("afterbegin", '<span class="enhanced-control-option-icon" aria-hidden="true"></span>');
+      leading = button.querySelector(".enhanced-control-option-icon");
+    }
+    if (leading) {
+      leading.hidden = !optionIcon;
+      leading.innerHTML = optionIcon ? `<i data-lucide="${escapeText(optionIcon)}"></i>` : "";
+    }
     button.querySelector(".enhanced-control-value").textContent = option?.textContent || "请选择";
     button.setAttribute("aria-label", `${fieldLabel(select)}：${option?.textContent || "请选择"}`);
     button.classList.toggle("is-placeholder", !select.value);
     button.disabled = select.disabled;
+    if (optionIcon && window.lucide) lucide.createIcons();
   }
 
   function renderSelectOptions(query = "") {
@@ -144,7 +164,8 @@
     selectPicker.querySelector(".control-option-count").textContent = `${options.length} 个选项`;
     list.innerHTML = options.length ? options.map(option => {
       const hint = optionHint(option);
-      return `<button type="button" role="option" data-option-value="${escapeText(option.value)}" aria-selected="${option.selected}" ${option.disabled ? "disabled" : ""}><span class="control-option-marker">${option.selected ? '<i data-lucide="check"></i>' : ""}</span><span class="control-option-copy"><strong>${escapeText(option.textContent)}</strong>${hint ? `<small>${escapeText(hint)}</small>` : ""}</span><span class="control-option-state">${option.selected ? "已选择" : ""}</span></button>`;
+      const icon = option.dataset.icon;
+      return `<button type="button" role="option" data-option-value="${escapeText(option.value)}" aria-selected="${option.selected}" ${option.disabled ? "disabled" : ""}><span class="control-option-marker">${icon ? `<i data-lucide="${escapeText(icon)}"></i>` : option.selected ? '<i data-lucide="check"></i>' : ""}</span><span class="control-option-copy"><strong>${escapeText(option.textContent)}</strong>${hint ? `<small>${escapeText(hint)}</small>` : ""}</span><span class="control-option-state">${option.selected ? "已选择" : ""}</span></button>`;
     }).join("") : `<div class="control-picker-empty"><i data-lucide="search-x"></i><strong>没有匹配选项</strong><small>换一个关键词试试</small></div>`;
     if (window.lucide) lucide.createIcons();
   }

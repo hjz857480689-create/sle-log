@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=20260717-username-auth" />
+    <link rel="stylesheet" href="./styles.css?v=20260721-release" />
   </head>
   <body>
     <section class="auth-shell" id="authShell" hidden aria-label="账号登录">
@@ -153,7 +153,8 @@
           </section>
 
           <article class="timeline-card panda-card">
-            <div class="chart-header"><div><p class="section-kicker">TIMELINE</p><h2>历年用药时间轴</h2><p>每个长条代表独立阶段，节点代表实际发生的治疗。</p></div><div class="segmented"><button>6 个月</button><button>1 年</button><button class="is-active">2 年</button><button>5 年</button><button>全部</button></div></div>
+            <div class="chart-header"><div><p class="section-kicker">TIMELINE</p><h2>历年用药时间轴</h2><p>每个长条代表独立阶段，节点代表实际发生的治疗。</p></div><div class="timeline-header-actions"><div class="segmented timeline-range-control" aria-label="时间范围"><button>6 个月</button><button>1 年</button><button class="is-active">2 年</button><button>5 年</button><button>全部</button></div><div class="timeline-view-actions"><div class="timeline-zoom-control" role="group" aria-label="调整时间轴刻度"><button type="button" data-timeline-zoom-step="-1" aria-label="缩小时间轴"><i data-lucide="minus"></i></button><span data-timeline-scale aria-live="polite">月刻度</span><button type="button" data-timeline-zoom-step="1" aria-label="放大时间轴"><i data-lucide="plus"></i></button><button type="button" class="timeline-fit-button" data-timeline-fit aria-label="使当前时间范围适应容器"><i data-lucide="scan"></i><span>适应</span></button></div><button class="timeline-expand-button" type="button" aria-label="放大时间轴并横屏查看" aria-expanded="false"><i data-lucide="maximize-2"></i><span>放大</span></button></div></div></div>
+            <div class="timeline-rotate-hint"><i data-lucide="rotate-ccw"></i><span>旋转手机横屏查看，双指可缩放刻度</span></div>
             <div class="timeline-filter"><button class="is-active">全部</button><button>糖皮质激素</button><button>免疫抑制剂</button><button>抗疟药</button><button>生物制剂 / 单抗</button><button>输注 / 冲击</button><button>辅助用药</button></div>
             <div class="timeline-scroll">
               <div class="timeline-axis"><span></span><b>2024</b><b>2025</b><b>2026</b></div>
@@ -174,8 +175,8 @@
             <div class="settings-sections">
               <section class="settings-group"><div class="settings-title"><p class="section-kicker">PROFILE</p><h2>个人信息</h2></div><div class="setting-row"><span><strong>昵称</strong><small>用于界面中的称呼</small></span><span data-profile-nickname>韩锦泽</span><button data-account-action="nickname">修改</button></div><div class="setting-row"><span><strong>用户名</strong><small>用于账号登录</small></span><span data-profile-username>hanjinze</span><button data-account-action="username">修改</button></div><div class="setting-row"><span><strong>登录密码</strong><small>建议定期更换密码</small></span><span>已设置</span><button data-account-action="password">修改</button></div><div class="setting-row"><span><strong>登录方式</strong><small>使用用户名和密码验证身份</small></span><span>用户名 + 密码</span></div></section>
               <section class="settings-group"><div class="settings-title"><p class="section-kicker">SYNC</p><h2>云端同步</h2></div><div class="sync-panel"><span class="sync-icon"><i data-lucide="cloud"></i></span><div><strong id="syncTitle">全部数据已同步</strong><small id="syncDescription">最近同步于今天 09:42 · 当前网络正常</small></div><button class="button secondary" id="manualSyncButton"><i data-lucide="refresh-cw"></i>重新同步</button></div></section>
-              <section class="settings-group"><div class="settings-title"><p class="section-kicker">DATA</p><h2>数据管理</h2></div><div class="data-actions"><button data-data-action="export-json"><i data-lucide="file-json"></i><span><strong>导出完整备份</strong><small>包含指标、用药与个人设置的 JSON 文件</small></span><i data-lucide="download"></i></button><button data-data-action="export-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出指标 CSV</strong><small>导出全部历史化验结果和参考范围</small></span><i data-lucide="download"></i></button><button data-data-action="export-med-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出用药 CSV</strong><small>导出阶段、给药和个人观察记录</small></span><i data-lucide="download"></i></button><button data-data-action="import-json"><i data-lucide="rotate-ccw"></i><span><strong>从备份恢复</strong><small>导入之前导出的 JSON 备份文件</small></span><i data-lucide="chevron-right"></i></button></div><input type="file" id="backupFileInput" accept="application/json,.json" hidden /><div class="data-delete-actions"><button data-data-action="clear-indicators"><i data-lucide="trash-2"></i>删除全部指标数据</button><button data-data-action="clear-medications"><i data-lucide="trash-2"></i>删除全部用药数据</button></div></section>
-              <section class="settings-group danger-zone"><div class="settings-title"><p class="section-kicker">DANGER ZONE</p><h2>账号操作</h2></div><div class="setting-row"><span><strong>退出登录</strong><small>云端数据不会被删除</small></span><button data-account-action="logout">退出</button></div><div class="setting-row"><span><strong>注销账号</strong><small>永久删除 Supabase 账号及全部云端数据，此操作无法撤销</small></span><button class="danger-text" data-account-action="delete-account">注销</button></div></section>
+              <section class="settings-group"><div class="settings-title"><p class="section-kicker">DATA</p><h2>数据管理</h2></div><div class="data-actions"><button data-data-action="export-json"><i data-lucide="file-json"></i><span><strong>导出完整备份</strong><small>包含指标、用药与个人设置的备份文件</small></span><i data-lucide="download"></i></button><button data-data-action="export-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出指标表格</strong><small>导出全部历史化验结果和参考范围</small></span><i data-lucide="download"></i></button><button data-data-action="export-med-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出用药表格</strong><small>导出阶段、给药和个人观察记录</small></span><i data-lucide="download"></i></button><button data-data-action="import-json"><i data-lucide="rotate-ccw"></i><span><strong>从备份恢复</strong><small>导入之前导出的完整备份文件</small></span><i data-lucide="chevron-right"></i></button></div><input type="file" id="backupFileInput" accept="application/json,.json" hidden /><div class="data-delete-actions"><button data-data-action="clear-indicators"><i data-lucide="trash-2"></i>删除全部指标数据</button><button data-data-action="clear-medications"><i data-lucide="trash-2"></i>删除全部用药数据</button></div></section>
+              <section class="settings-group danger-zone"><div class="settings-title"><p class="section-kicker">DANGER ZONE</p><h2>账号操作</h2></div><div class="setting-row"><span><strong>退出登录</strong><small>云端数据不会被删除</small></span><button data-account-action="logout">退出</button></div><div class="setting-row"><span><strong>注销账号</strong><small>永久删除云端账号及全部数据，此操作无法撤销</small></span><button class="danger-text" data-account-action="delete-account">注销</button></div></section>
             </div>
           </div>
         </section>
@@ -308,8 +309,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./supabase-config.js?v=20260717-supabase"></script>
     <script src="./supabase-client.js?v=20260717-username-auth"></script>
-    <script src="./app.js?v=20260717-supabase"></script>
-    <script src="./features.js?v=20260717-numeric-username"></script>
-    <script src="./controls.js?v=20260717-username-password"></script>
+    <script src="./app.js?v=20260721-release"></script>
+    <script src="./features.js?v=20260721-release"></script>
+    <script src="./controls.js?v=20260721-release"></script>
   </body>
 </html>

@@ -83,6 +83,16 @@
   state.addedMedicationRecords ||= [];
   state.deletedMedicationNames ||= [];
   state.medicationColors ||= {};
+  let correctedHistoricalMedicationStatus = false;
+  state.addedMedicationRecords.forEach(record => {
+    if (!String(record?.endDate || "").trim()) return;
+    const log = state.medicationLogs[record.name];
+    const isInitialStageOnly = log && (log.stages?.length || 0) <= 1;
+    if (isInitialStageOnly && log.status !== "已停药") {
+      log.status = "已停药";
+      correctedHistoricalMedicationStatus = true;
+    }
+  });
   let cleanedPrototypeMedicationData = false;
   if (!isLocalDemo) {
     const ownedMedicationNames = new Set(state.addedMedicationRecords.map(record => String(record?.name || "").trim()).filter(Boolean));
@@ -96,8 +106,9 @@
     state.medicationLogs = medicationLogs;
     state.medicationColors = medicationColors;
     state.medicationsCleared = !hasVisibleMedication;
-    if (cleanedPrototypeMedicationData && cloudUser) await cloud.saveState(state);
+    if ((cleanedPrototypeMedicationData || correctedHistoricalMedicationStatus) && cloudUser) await cloud.saveState(state);
   }
+  if (isLocalDemo && correctedHistoricalMedicationStatus) localStorage.setItem(STATE_KEY, JSON.stringify(state));
 
   document.body.insertAdjacentHTML("beforeend", `
     <div class="modal compact-modal" id="confirmModal" aria-hidden="true" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
@@ -127,6 +138,14 @@
   let currentMedicationFilter = "active";
   let currentTimelineFilter = "全部";
   let currentTimelineRange = "2 年";
+  const timelineZoomLevels = [
+    { key: "year", label: "年刻度", pixelsPerMonth: 12, gridMonths: 12 },
+    { key: "quarter", label: "季度刻度", pixelsPerMonth: 24, gridMonths: 3 },
+    { key: "month", label: "月刻度", pixelsPerMonth: 60, gridMonths: 1 },
+    { key: "week", label: "周刻度", pixelsPerMonth: 168, gridDays: 7 }
+  ];
+  let currentTimelineZoomIndex = 2;
+  let timelineFitMode = false;
 
   function persist() {
     state.indicators = clone(indicatorData);
@@ -192,30 +211,35 @@
   const serviceNotice = document.querySelector("[data-auth-service-notice]");
   if (!isLocalDemo && !cloud?.configured) {
     serviceNotice.hidden = false;
-    serviceNotice.textContent = "Supabase 尚未配置。请先填写 supabase-config.js 后再开放注册登录。";
+    serviceNotice.textContent = "云端服务尚未配置，暂时无法开放注册登录。";
     document.querySelectorAll("#loginForm button[type='submit'], #registerForm button[type='submit']").forEach(button => button.disabled = true);
   } else if (cloudBootError) {
     serviceNotice.hidden = false;
-    serviceNotice.textContent = "暂时无法连接云端，请检查网络或 Supabase 配置后重试。";
+    serviceNotice.textContent = "暂时无法连接云端，请检查网络或云端配置后重试。";
   }
   if (!isLocalDemo && cloudUser) {
-    setSyncStatus(cloudBootError ? "云端读取失败" : "全部数据已同步", cloudBootError ? "已载入本机缓存，请稍后重新同步" : "数据已安全保存到 Supabase", cloudBootError ? "error" : "ready");
-    document.querySelector(".profile-summary .status-badge").innerHTML = '<i data-lucide="shield-check"></i>Supabase 用户名账号';
+    setSyncStatus(cloudBootError ? "云端读取失败" : "全部数据已同步", cloudBootError ? "已载入本机缓存，请稍后重新同步" : "数据已安全保存到云端", cloudBootError ? "error" : "ready");
+    document.querySelector(".profile-summary .status-badge").innerHTML = '<i data-lucide="shield-check"></i>云端用户名账号';
   }
 
   window.addEventListener("sle:cloud-sync", event => {
-    if (event.detail?.pending) setSyncStatus("正在同步数据", "正在把本地变更保存到 Supabase", "pending");
-    else if (event.detail?.ok) setSyncStatus("全部数据已同步", "最近同步于刚刚 · Supabase 连接正常", "ready");
+    if (event.detail?.pending) setSyncStatus("正在同步数据", "正在把本地变更保存到云端", "pending");
+    else if (event.detail?.ok) setSyncStatus("全部数据已同步", "最近同步于刚刚 · 云端连接正常", "ready");
     else setSyncStatus("同步失败", "本地缓存已保留，请检查网络后重试", "error");
   });
 
   window.addEventListener("sle:data-changed", persist);
-  window.addEventListener("sle:medication-added", event => { const record = event.detail; state.addedMedicationRecords.push(record); state.deletedMedicationNames = state.deletedMedicationNames.filter(name => name !== record.name); state.medicationsCleared = false; const log = state.medicationLogs[record.name] ||= { status: "使用中", stages: [], administrations: [], observations: [] }; if (["longTerm", "biologic"].includes(record.recordType) && !log.stages.length) log.stages.push({ date: record.startDate, endDate: record.endDate, type: "开始用药", brand: record.brand, dose: record.dose, unit: record.unit, frequency: record.frequency, route: record.route, instruction: record.instruction, reason: record.purpose, notes: record.notes }); refreshMedicationCardStates(); persist(); });
+  window.addEventListener("sle:medication-added", event => { const record = event.detail; state.addedMedicationRecords.push(record); state.deletedMedicationNames = state.deletedMedicationNames.filter(name => name !== record.name); state.medicationsCleared = false; const initialStatus = String(record.endDate || "").trim() ? "已停药" : "使用中"; const log = state.medicationLogs[record.name] ||= { status: initialStatus, stages: [], administrations: [], observations: [] }; if (["longTerm", "biologic"].includes(record.recordType) && !log.stages.length) { log.status = initialStatus; log.stages.push({ date: record.startDate, endDate: record.endDate, type: "开始用药", brand: record.brand, dose: record.dose, unit: record.unit, frequency: record.frequency, route: record.route, instruction: record.instruction, reason: record.purpose, notes: record.notes }); } refreshMedicationCardStates(); persist(); });
 
   document.addEventListener("click", event => {
+    const medicationViewButton = event.target.closest('[data-view="medications"]'); if (medicationViewButton) setTimeout(() => renderMedicationTimeline(), 0);
+    const timelineExpandButton = event.target.closest(".timeline-expand-button"); if (timelineExpandButton) { toggleTimelineExpanded(); return; }
+    const timelineZoomButton = event.target.closest("[data-timeline-zoom-step]"); if (timelineZoomButton) { changeTimelineZoom(Number(timelineZoomButton.dataset.timelineZoomStep)); return; }
+    const timelineFitButton = event.target.closest("[data-timeline-fit]"); if (timelineFitButton) { fitMedicationTimeline(); return; }
+    const timelineStage = event.target.closest(".timeline-stage"); if (timelineStage) { const timeline = timelineStage.closest(".timeline-scroll"); if (timeline?.dataset.dragged === "true") { timeline.dataset.dragged = "false"; return; } const row = timelineStage.closest(".timeline-row"), detail = timelineStage.dataset.detail || timelineStage.title; showToast(row?.dataset.medicationName || "用药阶段", detail); return; }
     const modalOpener = event.target.closest("[data-open-modal]");
-    if (modalOpener?.dataset.openModal === "quickModal") { const item = currentItem(), form = document.querySelector("#quickForm"); form.elements.date.value = today(); form.elements.unit.value = item.unit; form.elements.low.value = item.low; form.elements.high.value = item.high; }
-    if (modalOpener?.dataset.openModal === "checkModal") document.querySelector("#checkForm").elements.date.value = today();
+    if (modalOpener?.dataset.openModal === "quickModal") { const form = document.querySelector("#quickForm"); form.elements.date.value = today(); window.SLEEntryDefaults?.applyQuickEntryDefaults(); }
+    if (modalOpener?.dataset.openModal === "checkModal") { document.querySelector("#checkForm").elements.date.value = today(); window.SLEEntryDefaults?.applyCheckEntryDefaults(); }
     if (modalOpener?.dataset.openModal === "indicatorModal") document.querySelector("#indicatorForm").elements.category.value = currentCategory;
     const passwordToggle = event.target.closest("[data-password-toggle]"); if (passwordToggle) { const input = passwordToggle.parentElement.querySelector("input"); const reveal = input.type === "password"; input.type = reveal ? "text" : "password"; passwordToggle.setAttribute("aria-pressed", String(reveal)); passwordToggle.setAttribute("aria-label", reveal ? "隐藏密码" : "显示密码"); passwordToggle.innerHTML = `<i data-lucide="${reveal ? "eye-off" : "eye"}"></i>`; if (window.lucide) lucide.createIcons(); input.focus(); return; }
     const close = event.target.closest("[data-feature-close]"); if (close) { closeFeatureModal(close.closest(".modal")); return; }
@@ -228,7 +252,7 @@
     const medButton = event.target.closest(".med-card button"); if (medButton) { handleMedicationCardButton(medButton); return; }
     const medTask = event.target.closest("[data-med-task]"); if (medTask) { openMedicationTask(medTask.dataset.medTask, selectedMedication); return; }
     const timelineFilter = event.target.closest(".timeline-filter button"); if (timelineFilter) { currentTimelineFilter = timelineFilter.textContent.trim(); timelineFilter.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineFilter)); applyTimelineFilter(); }
-    const timelineRange = event.target.closest(".timeline-card .segmented button"); if (timelineRange) { currentTimelineRange = timelineRange.textContent.trim(); timelineRange.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineRange)); renderMedicationTimeline(); }
+    const timelineRange = event.target.closest(".timeline-range-control button"); if (timelineRange) { currentTimelineRange = timelineRange.textContent.trim(); timelineRange.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineRange)); renderMedicationTimeline(); }
   });
 
   document.querySelector("#confirmActionButton").addEventListener("click", () => { const action = pendingConfirm; pendingConfirm = null; closeFeatureModal(document.querySelector("#confirmModal")); if (action) action(); });
@@ -255,7 +279,7 @@
       if (username !== state.profile.username || password !== state.account.password) { error.textContent = "用户名或密码不正确"; return; }
       error.textContent = ""; state.session = true; persist(); showAuth(false); form.elements.password.value = ""; showToast("登录成功", "本地测试数据已加载"); return;
     }
-    if (!cloud?.configured) { error.textContent = "Supabase 尚未配置"; return; }
+    if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; return; }
     error.textContent = ""; setFormBusy(form, true, "登录中…");
     const result = await cloud.signIn(username, password);
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "登录"); return; }
@@ -269,11 +293,11 @@
     if (password !== confirmPassword) { error.textContent = "两次输入的密码不一致"; return; }
     if (!data.get("consent")) { error.textContent = "请先同意服务协议与隐私政策"; return; }
     if (isLocalDemo) { error.textContent = ""; state.profile = { nickname: username, username, createdAt: today().replaceAll("-", ".") }; state.account.password = password; state.session = true; persist(); showAuth(false); form.reset(); showToast("账号已创建", "本地测试账号已登录"); return; }
-    if (!cloud?.configured) { error.textContent = "Supabase 尚未配置"; return; }
+    if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; return; }
     error.textContent = ""; setFormBusy(form, true, "创建账号中…");
     const result = await cloud.signUp(username, password, username);
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "注册并登录"); return; }
-    if (!result.data?.session) { error.textContent = "账号已创建，但 Supabase 仍要求邮箱确认；请在后台关闭 Confirm Email 后再注册。"; setFormBusy(form, false, "注册并登录"); return; }
+    if (!result.data?.session) { error.textContent = "账号已创建，但云端仍要求邮箱确认；请联系管理员调整登录设置后再注册。"; setFormBusy(form, false, "注册并登录"); return; }
     location.reload();
   });
 
@@ -306,7 +330,7 @@
       location.reload(); return;
     }
     if (action === "delete-account") {
-      confirmAction("注销账号并删除全部数据？", "Supabase 账号、指标、用药、观察记录和个人设置都会被永久删除，此操作无法撤销。", "注销并删除", async () => {
+      confirmAction("注销账号并删除全部数据？", "云端账号、指标、用药、观察记录和个人设置都会被永久删除，此操作无法撤销。", "注销并删除", async () => {
         if (isLocalDemo) { localStorage.removeItem(STATE_KEY); showAuth(true); switchAuthView("register"); showToast("账号已注销", "本地测试数据已经删除"); return; }
         const result = await cloud.deleteAccount();
         if (result.error) { showToast("注销失败", authMessage(result.error)); return; }
@@ -372,7 +396,7 @@
   document.querySelector("#exportIndicatorCsv")?.addEventListener("click", () => downloadFile(`${currentItem().short}-${today()}.csv`, `\ufeff${exportIndicatorsCsv()}`, "text/csv;charset=utf-8"));
   document.querySelector("#backupFileInput").addEventListener("change", async event => { const file = event.target.files[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!imported.profile || !imported.indicators) throw new Error("invalid"); delete imported.account; delete imported.session; if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify({ ...imported, session: false })); else { const saved = await cloud.flush(imported); if (saved.error) throw saved.error; } showToast("备份验证成功", "页面将重新载入恢复后的数据"); setTimeout(() => location.reload(), 700); } catch { showToast("无法恢复备份", "请选择由 SLE记录簿导出的有效 JSON 文件"); } event.target.value = ""; });
 
-  document.querySelector("#manualSyncButton").addEventListener("click", async event => { const button = event.currentTarget; if (!navigator.onLine) { setSyncStatus("同步失败", "当前网络不可用，恢复连接后可重新同步", "error"); showToast("暂时无法同步", "请检查网络连接后重试"); return; } button.disabled = true; button.innerHTML = `<i data-lucide="refresh-cw" class="spin"></i>同步中`; setSyncStatus("正在同步数据", isLocalDemo ? "正在检查本地数据" : "正在把最新记录保存到 Supabase", "pending"); if (window.lucide) lucide.createIcons(); if (isLocalDemo) { persist(); await new Promise(resolve => setTimeout(resolve, 300)); } else { const result = await cloud.flush(state); if (result.error) { button.disabled = false; button.innerHTML = `<i data-lucide="refresh-cw"></i>重新同步`; setSyncStatus("同步失败", "本地缓存已保留，请稍后重试", "error"); showToast("同步失败", authMessage(result.error)); if (window.lucide) lucide.createIcons(); return; } } state.lastSync = "刚刚"; button.disabled = false; button.innerHTML = `<i data-lucide="check"></i>同步完成`; setSyncStatus("全部数据已同步", isLocalDemo ? "本地测试数据已保存" : "最近同步于刚刚 · Supabase 连接正常", "ready"); if (window.lucide) lucide.createIcons(); });
+  document.querySelector("#manualSyncButton").addEventListener("click", async event => { const button = event.currentTarget; if (!navigator.onLine) { setSyncStatus("同步失败", "当前网络不可用，恢复连接后可重新同步", "error"); showToast("暂时无法同步", "请检查网络连接后重试"); return; } button.disabled = true; button.innerHTML = `<i data-lucide="refresh-cw" class="spin"></i>同步中`; setSyncStatus("正在同步数据", isLocalDemo ? "正在检查本地数据" : "正在把最新记录保存到云端", "pending"); if (window.lucide) lucide.createIcons(); if (isLocalDemo) { persist(); await new Promise(resolve => setTimeout(resolve, 300)); } else { const result = await cloud.flush(state); if (result.error) { button.disabled = false; button.innerHTML = `<i data-lucide="refresh-cw"></i>重新同步`; setSyncStatus("同步失败", "本地缓存已保留，请稍后重试", "error"); showToast("同步失败", authMessage(result.error)); if (window.lucide) lucide.createIcons(); return; } } state.lastSync = "刚刚"; button.disabled = false; button.innerHTML = `<i data-lucide="check"></i>同步完成`; setSyncStatus("全部数据已同步", isLocalDemo ? "本地测试数据已保存" : "最近同步于刚刚 · 云端连接正常", "ready"); if (window.lucide) lucide.createIcons(); });
   window.addEventListener("offline", () => { document.querySelector("#syncTitle").textContent = "等待网络连接"; document.querySelector("#syncDescription").textContent = "本地变更已保留，联网后可以手动同步"; });
   window.addEventListener("online", () => { document.querySelector("#syncTitle").textContent = "网络已恢复"; document.querySelector("#syncDescription").textContent = "点击重新同步，将本地变更发送到云端"; });
 
@@ -429,24 +453,129 @@
     return { start, end, span: Math.max(day, end - start) };
   }
   function timelinePosition(timestamp, bounds) { return (timestamp - bounds.start) / bounds.span * 100; }
-  function timelineAxisHTML(bounds) {
-    const middle = bounds.start + bounds.span / 2;
-    return `<span></span><div class="timeline-axis-labels"><b>${timelineDateLabel(bounds.start)}</b><b>${timelineDateLabel(middle)}</b><b>${currentTimelineRange === "全部" && bounds.end > timelineTimestamp(today()) ? timelineDateLabel(bounds.end) : "现在"}</b></div>`;
+  function timelineMonthSpan(bounds) { return Math.max(.25, bounds.span / (86400000 * 365.2425 / 12)); }
+  function timelineZoomLayout(timeline, bounds) {
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const labelWidth = mobile ? 88 : 104;
+    const fallbackWidth = mobile ? window.innerWidth - 32 : Math.min(1100, window.innerWidth - 320);
+    const endPadding = parseFloat(getComputedStyle(timeline).paddingRight) || 0;
+    const availableTrackWidth = Math.max(240, (timeline.clientWidth || fallbackWidth) - labelWidth - endPadding);
+    const months = timelineMonthSpan(bounds);
+    let config = timelineZoomLevels[currentTimelineZoomIndex];
+    if (timelineFitMode) {
+      const fittedPixelsPerMonth = availableTrackWidth / months;
+      config = fittedPixelsPerMonth >= 92 ? timelineZoomLevels[3] : fittedPixelsPerMonth >= 36 ? timelineZoomLevels[2] : fittedPixelsPerMonth >= 16 ? timelineZoomLevels[1] : timelineZoomLevels[0];
+    }
+    const trackWidth = Math.round(timelineFitMode ? availableTrackWidth : Math.max(availableTrackWidth, months * config.pixelsPerMonth));
+    const gridSize = config.gridDays ? trackWidth / (bounds.span / 86400000) * config.gridDays : trackWidth / months * config.gridMonths;
+    timeline.style.setProperty("--timeline-label-width", `${labelWidth}px`);
+    timeline.style.setProperty("--timeline-track-width", `${trackWidth}px`);
+    timeline.style.setProperty("--timeline-grid-size", `${Math.max(18, gridSize).toFixed(2)}px`);
+    timeline.dataset.effectiveZoom = config.key;
+    const scale = document.querySelector("[data-timeline-scale]");
+    if (scale) scale.textContent = timelineFitMode ? "适应" : config.label;
+    const fitButton = document.querySelector("[data-timeline-fit]");
+    if (fitButton) { fitButton.classList.toggle("is-active", timelineFitMode); fitButton.setAttribute("aria-pressed", String(timelineFitMode)); }
+    document.querySelectorAll("[data-timeline-zoom-step]").forEach(button => { const step = Number(button.dataset.timelineZoomStep); button.disabled = !timelineFitMode && (step < 0 ? currentTimelineZoomIndex === 0 : currentTimelineZoomIndex === timelineZoomLevels.length - 1); });
+    return { config, labelWidth, trackWidth };
+  }
+  function timelineAxisTicks(bounds, config, trackWidth) {
+    const ticks = [{ timestamp: bounds.start, label: timelineDateLabel(bounds.start), edge: "start" }];
+    const startDate = new Date(bounds.start);
+    let cursor;
+    if (config.key === "year") cursor = Date.UTC(startDate.getUTCFullYear() + 1, 0, 1);
+    else if (config.key === "quarter") { const nextQuarterMonth = Math.floor(startDate.getUTCMonth() / 3) * 3 + 3; cursor = Date.UTC(startDate.getUTCFullYear(), nextQuarterMonth, 1); }
+    else if (config.key === "month") cursor = Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1);
+    else { const weekday = startDate.getUTCDay() || 7; cursor = Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() + (8 - weekday)); }
+    const minimumGap = 46 / Math.max(1, trackWidth) * bounds.span;
+    while (cursor < bounds.end) {
+      if (cursor - bounds.start > minimumGap && bounds.end - cursor > minimumGap) {
+        const date = new Date(cursor), year = date.getUTCFullYear(), month = date.getUTCMonth();
+        const label = config.key === "year" ? String(year) : config.key === "quarter" ? `${year} Q${Math.floor(month / 3) + 1}` : config.key === "month" ? timelineDateLabel(cursor) : `${String(month + 1).padStart(2, "0")}.${String(date.getUTCDate()).padStart(2, "0")}`;
+        ticks.push({ timestamp: cursor, label });
+      }
+      if (config.key === "year") cursor = Date.UTC(new Date(cursor).getUTCFullYear() + 1, 0, 1);
+      else if (config.key === "quarter") cursor = Date.UTC(new Date(cursor).getUTCFullYear(), new Date(cursor).getUTCMonth() + 3, 1);
+      else if (config.key === "month") cursor = Date.UTC(new Date(cursor).getUTCFullYear(), new Date(cursor).getUTCMonth() + 1, 1);
+      else cursor += 7 * 86400000;
+    }
+    ticks.push({ timestamp: bounds.end, label: currentTimelineRange === "全部" && bounds.end > timelineTimestamp(today()) ? timelineDateLabel(bounds.end) : "现在", edge: "end" });
+    return ticks;
+  }
+  function timelineAxisHTML(bounds, config, trackWidth) {
+    const ticks = timelineAxisTicks(bounds, config, trackWidth).map(tick => `<b class="${tick.edge ? `is-${tick.edge}` : ""}" style="left:${timelinePosition(tick.timestamp, bounds).toFixed(3)}%">${safeText(tick.label)}</b>`).join("");
+    return `<span></span><div class="timeline-axis-labels">${ticks}</div>`;
+  }
+  function timelineViewportAnchor(timeline, bounds) {
+    const labelWidth = parseFloat(getComputedStyle(timeline).getPropertyValue("--timeline-label-width")) || 104;
+    const trackWidth = parseFloat(getComputedStyle(timeline).getPropertyValue("--timeline-track-width")) || Math.max(1, timeline.scrollWidth - labelWidth);
+    const trackPosition = Math.max(0, Math.min(trackWidth, timeline.scrollLeft + timeline.clientWidth / 2 - labelWidth));
+    return bounds.start + trackPosition / Math.max(1, trackWidth) * bounds.span;
+  }
+  function restoreTimelineAnchor(timeline, bounds, timestamp) {
+    const labelWidth = parseFloat(getComputedStyle(timeline).getPropertyValue("--timeline-label-width")) || 104;
+    const trackWidth = parseFloat(getComputedStyle(timeline).getPropertyValue("--timeline-track-width")) || Math.max(1, timeline.scrollWidth - labelWidth);
+    const position = Math.max(0, Math.min(1, (timestamp - bounds.start) / bounds.span));
+    timeline.scrollLeft = Math.max(0, Math.min(timeline.scrollWidth - timeline.clientWidth, labelWidth + position * trackWidth - timeline.clientWidth / 2));
   }
   function timelineCategoryMatches(category) {
     const keywords = { "糖皮质激素": ["糖皮质激素"], "免疫抑制剂": ["免疫抑制剂"], "抗疟药": ["抗疟药"], "生物制剂 / 单抗": ["生物制剂", "单抗"], "输注 / 冲击": ["输注", "冲击"], "辅助用药": ["辅助用药"] }[currentTimelineFilter];
     return !keywords || keywords.some(keyword => String(category || "").includes(keyword));
   }
   function applyTimelineFilter() {
-    document.querySelectorAll(".timeline-row").forEach(row => { row.hidden = !timelineCategoryMatches(row.dataset.timelineCategory); });
+    document.querySelectorAll(".timeline-row").forEach(row => {
+      const filteredOut = !timelineCategoryMatches(row.dataset.timelineCategory);
+      row.hidden = filteredOut;
+      row.classList.toggle("is-filtered-out", filteredOut);
+    });
     const visible = [...document.querySelectorAll(".timeline-row")].some(row => !row.hidden);
     document.querySelector(".timeline-empty")?.toggleAttribute("hidden", visible);
   }
-  function renderMedicationTimeline() {
+  function scrollTimelineToLatest() {
+    const timeline = document.querySelector(".timeline-scroll");
+    if (!timeline) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => { timeline.scrollLeft = Math.max(0, timeline.scrollWidth - timeline.clientWidth); }));
+  }
+  function changeTimelineZoom(step, anchorTimestamp) {
+    const timeline = document.querySelector(".timeline-scroll"); if (!timeline) return;
+    const bounds = timelineBounds(timelineSourceGroups()), anchor = Number.isFinite(anchorTimestamp) ? anchorTimestamp : timelineViewportAnchor(timeline, bounds);
+    if (timelineFitMode) { const effectiveIndex = timelineZoomLevels.findIndex(level => level.key === timeline.dataset.effectiveZoom); if (effectiveIndex >= 0) currentTimelineZoomIndex = effectiveIndex; }
+    timelineFitMode = false;
+    currentTimelineZoomIndex = Math.max(0, Math.min(timelineZoomLevels.length - 1, currentTimelineZoomIndex + step));
+    renderMedicationTimeline({ anchorTimestamp: anchor });
+  }
+  function fitMedicationTimeline(anchorTimestamp) {
+    const timeline = document.querySelector(".timeline-scroll"); if (!timeline) return;
+    const bounds = timelineBounds(timelineSourceGroups()), anchor = Number.isFinite(anchorTimestamp) ? anchorTimestamp : timelineViewportAnchor(timeline, bounds);
+    timelineFitMode = true;
+    renderMedicationTimeline({ anchorTimestamp: anchor });
+  }
+  function toggleTimelineExpanded(force) {
+    const card = document.querySelector(".timeline-card"), button = card?.querySelector(".timeline-expand-button");
+    if (!card || !button) return;
+    const timeline = card.querySelector(".timeline-scroll"), bounds = timelineBounds(timelineSourceGroups()), anchor = timelineViewportAnchor(timeline, bounds);
+    const expanded = typeof force === "boolean" ? force : !card.classList.contains("is-expanded");
+    card.classList.toggle("is-expanded", expanded);
+    document.body.classList.toggle("timeline-expanded-open", expanded);
+    button.setAttribute("aria-expanded", String(expanded));
+    button.setAttribute("aria-label", expanded ? "退出放大时间轴" : "放大时间轴并横屏查看");
+    button.innerHTML = `<i data-lucide="${expanded ? "minimize-2" : "maximize-2"}"></i><span>${expanded ? "退出" : "放大"}</span>`;
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => renderMedicationTimeline({ anchorTimestamp: anchor }), 0);
+  }
+  function updateTimelineStageLabels(timeline) {
+    timeline.querySelectorAll(".timeline-stage").forEach(stage => {
+      const width = stage.getBoundingClientRect().width;
+      stage.textContent = width < 42 ? "" : width < 92 ? stage.dataset.shortLabel : stage.dataset.fullLabel;
+      stage.classList.toggle("is-icon-only", width < 42);
+    });
+  }
+  function renderMedicationTimeline(options = {}) {
     const timeline = document.querySelector(".timeline-scroll"), axis = timeline?.querySelector(".timeline-axis");
     if (!timeline || !axis) return;
     const groups = timelineSourceGroups(), bounds = timelineBounds(groups);
-    axis.innerHTML = timelineAxisHTML(bounds);
+    const layout = timelineZoomLayout(timeline, bounds);
+    axis.innerHTML = timelineAxisHTML(bounds, layout.config, layout.trackWidth);
     timeline.querySelectorAll(".timeline-row, .timeline-empty").forEach(row => row.remove());
     const now = timelineTimestamp(today()), rows = [];
 
@@ -459,8 +588,8 @@
         if (stage.dose !== undefined && stage.dose !== "") {
           const end = Number.isFinite(explicitEnd) ? explicitEnd : Number.isFinite(next) ? next : now;
           if (end >= bounds.start && start <= bounds.end) {
-            const clippedStart = Math.max(start, bounds.start), clippedEnd = Math.min(Math.max(end, start + 86400000), bounds.end), left = Math.max(0, timelinePosition(clippedStart, bounds)), width = Math.max(.65, timelinePosition(clippedEnd, bounds) - left), label = [stage.dose && `${stage.dose} ${stage.unit || ""}`.trim(), stage.frequency].filter(Boolean).join(" · ");
-            marks.push(`<span class="stage timeline-stage" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)} 起 · ${label}`)}">${safeText(label || stage.type || "用药阶段")}</span>`);
+            const clippedStart = Math.max(start, bounds.start), clippedEnd = Math.min(Math.max(end, start + 86400000), bounds.end), left = Math.max(0, timelinePosition(clippedStart, bounds)), width = Math.max(.65, timelinePosition(clippedEnd, bounds) - left), shortLabel = stage.dose && `${stage.dose} ${stage.unit || ""}`.trim(), label = [shortLabel, stage.frequency].filter(Boolean).join(" · ") || stage.type || "用药阶段", detail = `${timelineDateLabel(start, true)} 至 ${timelineDateLabel(end, true)} · ${label}`;
+            marks.push(`<span class="stage timeline-stage" role="button" tabindex="0" aria-label="${safeText(detail)}" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" data-short-label="${safeText(shortLabel || stage.type || "阶段")}" data-full-label="${safeText(label)}" data-detail="${safeText(detail)}" title="${safeText(detail)}">${safeText(label)}</span>`);
           }
         } else if (start >= bounds.start && start <= bounds.end) {
           marks.push(`<i class="timeline-event status-event" style="left:${timelinePosition(start, bounds).toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)} · ${stage.type || "阶段变化"}`)}"><span>${safeText(stage.type || "阶段变化")}</span></i>`);
@@ -476,19 +605,60 @@
         const label = record.recordType === "infusion" ? `${record.sessionCount || ""}${record.sessionCount ? " 次 · " : ""}${record.dose || ""} ${record.unit || ""}`.trim() : record.dose || record.category || "治疗记录";
         if (Number.isFinite(end) && end > start && end >= bounds.start && start <= bounds.end) {
           const clippedStart = Math.max(start, bounds.start), clippedEnd = Math.min(end, bounds.end), left = timelinePosition(clippedStart, bounds), width = Math.max(.65, timelinePosition(clippedEnd, bounds) - left);
-          marks.push(`<span class="stage timeline-stage treatment-stage" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)}–${timelineDateLabel(end, true)} · ${label}`)}">${safeText(label)}</span>`);
+          const detail = `${timelineDateLabel(start, true)} 至 ${timelineDateLabel(end, true)} · ${label}`;
+          marks.push(`<span class="stage timeline-stage treatment-stage" role="button" tabindex="0" aria-label="${safeText(detail)}" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" data-short-label="${safeText(label.split(" · ")[0] || "疗程")}" data-full-label="${safeText(label)}" data-detail="${safeText(detail)}" title="${safeText(detail)}">${safeText(label)}</span>`);
         } else if (start >= bounds.start && start <= bounds.end) marks.push(`<i class="timeline-event treatment-event" style="left:${timelinePosition(start, bounds).toFixed(3)}%" title="${safeText(`${timelineDateLabel(start, true)} · ${label}`)}"></i>`);
       });
       if (!marks.length) return;
       const recordColor = group.records.find(record => record.color)?.color, color = state.medicationColors[group.name] || recordColor || "#E4ECF5";
       const earliest = Math.min(...[...stages.map(item => timelineTimestamp(item.date)), ...(log.administrations || []).map(item => timelineTimestamp(item.date)), ...group.records.map(item => timelineTimestamp(item.startDate))].filter(Number.isFinite));
-      rows.push({ earliest, html: `<div class="timeline-row" data-medication-name="${safeText(group.name)}" data-timeline-category="${safeText(group.category)}" style="--med-color:${safeText(color)}"><strong>${safeText(group.name)}<small>${safeText(group.category)}</small></strong><div class="timeline-track">${marks.join("")}</div></div>` });
+      rows.push({ earliest, html: `<div class="timeline-row" data-medication-name="${safeText(group.name)}" data-timeline-category="${safeText(group.category)}" style="--med-color:${safeText(color)}"><strong title="${safeText(group.name)}">${safeText(group.name)}</strong><div class="timeline-track">${marks.join("")}</div></div>` });
     });
     rows.sort((left, right) => left.earliest - right.earliest).forEach(row => timeline.insertAdjacentHTML("beforeend", row.html));
     timeline.insertAdjacentHTML("beforeend", `<div class="timeline-empty" ${rows.length ? "hidden" : ""}><strong>当前时间范围内暂无用药记录</strong><small>切换时间范围，或添加带日期的用药记录。</small></div>`);
     document.querySelector(".timeline-card").dataset.range = currentTimelineRange;
     applyTimelineFilter();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      updateTimelineStageLabels(timeline);
+      if (Number.isFinite(options.anchorTimestamp)) restoreTimelineAnchor(timeline, bounds, options.anchorTimestamp);
+      else timeline.scrollLeft = Math.max(0, timeline.scrollWidth - timeline.clientWidth);
+    }));
   }
+  document.addEventListener("keydown", event => { if (event.key === "Escape" && document.querySelector(".timeline-card.is-expanded")) toggleTimelineExpanded(false); });
+  document.addEventListener("keydown", event => { const stage = event.target.closest?.(".timeline-stage"); if (stage && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); stage.click(); } });
+  window.addEventListener("orientationchange", () => { const timeline = document.querySelector(".timeline-scroll"), bounds = timelineBounds(timelineSourceGroups()), anchor = timelineViewportAnchor(timeline, bounds); setTimeout(() => renderMedicationTimeline({ anchorTimestamp: anchor }), 180); });
+  function setupTimelineInteractions() {
+    const timeline = document.querySelector(".timeline-scroll"); if (!timeline || timeline.dataset.interactionsReady) return;
+    timeline.dataset.interactionsReady = "true";
+    let pointerStart = 0, scrollStart = 0, dragging = false, pinchDistance = 0, pinchAnchor = NaN;
+    timeline.addEventListener("pointerdown", event => {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+      pointerStart = event.clientX; scrollStart = timeline.scrollLeft; dragging = true; timeline.dataset.dragged = "false"; timeline.classList.add("is-dragging"); timeline.setPointerCapture(event.pointerId);
+    });
+    timeline.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      const movement = event.clientX - pointerStart; if (Math.abs(movement) > 4) timeline.dataset.dragged = "true";
+      timeline.scrollLeft = scrollStart - movement;
+    });
+    const stopDragging = event => { if (!dragging) return; dragging = false; timeline.classList.remove("is-dragging"); if (timeline.hasPointerCapture?.(event.pointerId)) timeline.releasePointerCapture(event.pointerId); };
+    timeline.addEventListener("pointerup", stopDragging); timeline.addEventListener("pointercancel", stopDragging);
+    const touchDistance = touches => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    timeline.addEventListener("touchstart", event => {
+      if (event.touches.length !== 2 || !timeline.closest(".timeline-card")?.classList.contains("is-expanded")) return;
+      pinchDistance = touchDistance(event.touches);
+      const midpoint = (event.touches[0].clientX + event.touches[1].clientX) / 2, bounds = timelineBounds(timelineSourceGroups()), rect = timeline.getBoundingClientRect(), labelWidth = parseFloat(getComputedStyle(timeline).getPropertyValue("--timeline-label-width")) || 88, trackWidth = parseFloat(getComputedStyle(timeline).getPropertyValue("--timeline-track-width")) || 1, trackPosition = Math.max(0, Math.min(trackWidth, timeline.scrollLeft + midpoint - rect.left - labelWidth));
+      pinchAnchor = bounds.start + trackPosition / trackWidth * bounds.span;
+    }, { passive: true });
+    timeline.addEventListener("touchmove", event => {
+      if (event.touches.length !== 2 || !pinchDistance || !timeline.closest(".timeline-card")?.classList.contains("is-expanded")) return;
+      if (event.cancelable) event.preventDefault();
+      const distance = touchDistance(event.touches), ratio = distance / pinchDistance;
+      if (ratio > 1.18) { changeTimelineZoom(1, pinchAnchor); pinchDistance = distance; }
+      else if (ratio < .84) { changeTimelineZoom(-1, pinchAnchor); pinchDistance = distance; }
+    }, { passive: false });
+    timeline.addEventListener("touchend", event => { if (event.touches.length < 2) { pinchDistance = 0; pinchAnchor = NaN; } }, { passive: true });
+  }
+  setupTimelineInteractions();
   function medicationColorEditorHTML(name) {
     const card = [...document.querySelectorAll(".med-card")].find(item => medicationNameFromCard(item) === name);
     const current = medicationColorChoice(state.medicationColors[name] || card?.dataset.medicationColor);

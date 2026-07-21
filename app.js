@@ -37,6 +37,56 @@ const formatNumber = value => Number.isInteger(value) ? String(value) : String(N
 
 function currentItem(){ return indicatorData[currentCategory].items[currentIndicator]; }
 
+const checkEntryFields={
+  value:["activity","c3","unit","low","high"],c4Value:["activity","c4","c4Unit","c4Low","c4High"],dsdnaValue:["activity","dsdna","dsdnaUnit","dsdnaLow","dsdnaHigh"],esrValue:["activity","esr","esrUnit","esrLow","esrHigh"],crpValue:["activity","crp","crpUnit","crpLow","crpHigh"],
+  protein24Value:["kidney","protein24","protein24Unit","protein24Low","protein24High"],upcrValue:["kidney","upcr","upcrUnit","upcrLow","upcrHigh"],egfrValue:["kidney","egfr","egfrUnit","egfrLow","egfrHigh"],creatinineValue:["kidney","creatinine","creatinineUnit","creatinineLow","creatinineHigh"],
+  wbcValue:["blood","wbc","wbcUnit","wbcLow","wbcHigh"],hbValue:["blood","hb","hbUnit","hbLow","hbHigh"],plateletsValue:["blood","platelets","plateletsUnit","plateletsLow","plateletsHigh"],iggValue:["other","igg","iggUnit","iggLow","iggHigh"]
+};
+
+function latestEntered(item,index,fallback){
+  const record=[...(item?.records||[])].reverse().find(row=>row[index]!==undefined&&row[index]!==null&&String(row[index]).trim()!=="");
+  return record?record[index]:fallback;
+}
+function rememberedIndicatorFields(item){
+  return {
+    unit:item?.entryDefaults?.unit??latestEntered(item,4,item.unit),
+    low:item?.entryDefaults?.low??latestEntered(item,5,item.low),
+    high:item?.entryDefaults?.high??latestEntered(item,6,item.high)
+  };
+}
+function rememberEntryFields(item,{unit,low,high,hospital}){
+  const previous=item.entryDefaults||{};
+  item.entryDefaults={...previous,unit,low,high,updatedAt:Date.now()};
+  if(hospital&&hospital!=="未填写医院")item.entryDefaults.hospital=hospital;
+}
+function latestEnteredHospital(){
+  const remembered=Object.values(indicatorData).flatMap(category=>Object.values(category.items)).map(item=>item.entryDefaults).filter(preference=>preference?.hospital).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0];
+  if(remembered)return remembered.hospital;
+  const records=Object.values(indicatorData).flatMap(category=>Object.values(category.items).flatMap(item=>(item.records||[]).map((record,index)=>({record,index}))));
+  records.sort((a,b)=>String(b.record[0]||"").localeCompare(String(a.record[0]||""))||b.index-a.index);
+  return records.find(({record})=>record[2]&&record[2]!=="未填写医院")?.record[2]||"";
+}
+function applyQuickEntryDefaults(){
+  const form=$("#quickForm"),item=currentItem(),remembered=rememberedIndicatorFields(item);
+  form.elements.unit.value=remembered.unit??"";
+  form.elements.low.value=remembered.low??"";
+  form.elements.high.value=remembered.high??"";
+  form.elements.hospital.value=latestEnteredHospital();
+}
+function applyCheckEntryDefaults(){
+  const form=$("#checkForm");
+  form.elements.hospital.value=latestEnteredHospital();
+  Object.values(checkEntryFields).forEach(([category,key,unitField,lowField,highField])=>{
+    const item=indicatorData[category]?.items[key];if(!item)return;
+    const remembered=rememberedIndicatorFields(item);
+    if(form.elements[unitField])form.elements[unitField].value=remembered.unit??"";
+    if(form.elements[lowField])form.elements[lowField].value=remembered.low??"";
+    if(form.elements[highField])form.elements[highField].value=remembered.high??"";
+  });
+}
+window.SLEEntryDefaults={applyQuickEntryDefaults,applyCheckEntryDefaults,rememberedIndicatorFields,latestEnteredHospital};
+$$('#checkForm input[name="low"],#checkForm input[name="high"],#checkForm input[name$="Low"],#checkForm input[name$="High"],#quickForm input[name="low"],#quickForm input[name="high"]').forEach(input=>input.step="any");
+
 function renderPicker(){
   const picker = $("#indicatorPicker");
   const entries=Object.entries(indicatorData[currentCategory].items).filter(([,item])=>!item.isHidden);
@@ -108,7 +158,7 @@ function switchView(view){
 function openModal(id){ const modal=document.getElementById(id); if(!modal)return; modal.classList.add("is-open");modal.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";setTimeout(()=>$("input,button",modal)?.focus(),50); }
 function closeModal(modal){ if(!modal)return;modal.classList.remove("is-open");modal.setAttribute("aria-hidden","true");if(!$(".modal.is-open"))document.body.style.overflow=""; }
 function showToast(title="保存成功",description="趋势图和最新结果已同步更新"){ const toast=$("#toast");$("strong",toast).textContent=title;$("small",toast).textContent=description;toast.classList.add("is-visible");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove("is-visible"),4500); }
-function saveQuick(form){ const fd=new FormData(form),item=currentItem(),unit=fd.get("unit")||item.unit,low=fd.get("low")===""?item.low:Number(fd.get("low")),high=fd.get("high")===""?item.high:Number(fd.get("high"));item.records.push([fd.get("date"),Number(fd.get("value")),fd.get("hospital")||"未填写医院",fd.get("notes")||"",unit,low,high,item.name]);item.max=Math.max(item.max||0,high*1.2,Number(fd.get("value"))*1.2);item.records.sort((a,b)=>a[0].localeCompare(b[0]));renderIndicator();closeModal(form.closest(".modal"));form.reset();window.dispatchEvent(new CustomEvent("sle:data-changed"));showToast(); }
+function saveQuick(form){ const fd=new FormData(form),item=currentItem(),unit=fd.get("unit")||item.unit,low=fd.get("low")===""?item.low:Number(fd.get("low")),high=fd.get("high")===""?item.high:Number(fd.get("high")),hospital=fd.get("hospital")||"未填写医院";rememberEntryFields(item,{unit,low,high,hospital});item.records.push([fd.get("date"),Number(fd.get("value")),hospital,fd.get("notes")||"",unit,low,high,item.name]);item.max=Math.max(item.max||0,high*1.2,Number(fd.get("value"))*1.2);item.records.sort((a,b)=>a[0].localeCompare(b[0]));renderIndicator();closeModal(form.closest(".modal"));form.reset();window.dispatchEvent(new CustomEvent("sle:data-changed"));showToast(); }
 
 const medicationColorOptions=[
   {name:"淡蓝",value:"#DDEBFF"},{name:"雾蓝",value:"#E4ECF5"},{name:"天青",value:"#D9F0F4"},
@@ -124,12 +174,15 @@ function medicationColorPickerHTML(){
   return `<fieldset class="med-color-fieldset"><legend>药品标识颜色</legend><p>用于药物卡片的药片图标背景，方便快速区分不同药物。</p><div class="med-color-grid" role="radiogroup" aria-label="选择药品标识颜色">${options}</div><div class="med-color-preview"><span class="med-color-preview-icon" style="--med-icon-bg:${defaultMedicationColor.value}"><i data-lucide="pill"></i></span><span>当前选择 <strong data-med-color-name>${defaultMedicationColor.name}</strong></span></div></fieldset>`;
 }
 function medicationColor(value){return medicationColorOptions.find(color=>color.value.toUpperCase()===String(value||"").toUpperCase())||defaultMedicationColor;}
+const medicationDosageFormIcons={"片剂":"pill","胶囊剂":"pill","颗粒剂":"package","口服液":"cup-soda","注射液":"syringe","预充式注射剂":"syringe","冻干粉针剂":"snowflake","乳膏 / 软膏":"paintbrush","滴眼液":"eye","其他":"shapes"};
+function medicationDosageIcon(dosageForm,recordType){return medicationDosageFormIcons[dosageForm]||(recordType==="biologic"?"syringe":recordType==="infusion"?"droplets":recordType==="other"?"clipboard-plus":"pill");}
+window.SLEMedicationDosageIcon=medicationDosageIcon;
 
 const medicationFormConfigs={
   longTerm:{kicker:"LONG-TERM MEDICATION",title:"添加长期用药",description:"剂量、频率或品牌变化时，应创建新的用药阶段。",submit:"保存长期用药",html:`
     <section class="med-form-section"><div class="med-form-section-head"><h3>药物信息</h3><p>记录当前阶段实际使用的药物与品牌</p></div><div class="form-grid">
       <label><span>药物通用名称 *</span><input name="name" required placeholder="例如：泼尼松" /></label><label><span>商品名或品牌</span><input name="brand" placeholder="例如：醋酸泼尼松片" /></label>
-      <label><span>药物分类</span><select name="category"><option>糖皮质激素</option><option>免疫抑制剂</option><option>抗疟药</option><option>生物制剂 / 单抗</option><option>输注 / 冲击治疗</option><option>辅助用药</option><option>其他治疗</option></select></label><label><span>剂型</span><input name="dosageForm" placeholder="例如：片剂、胶囊、注射液" /></label>
+      <label><span>药物分类</span><select name="category"><option>糖皮质激素</option><option>免疫抑制剂</option><option>抗疟药</option><option>生物制剂 / 单抗</option><option>输注 / 冲击治疗</option><option>辅助用药</option><option>其他治疗</option></select></label><label><span>剂型</span><select name="dosageForm"><option value="">请选择剂型</option><option data-icon="pill">片剂</option><option data-icon="pill">胶囊剂</option><option data-icon="package">颗粒剂</option><option data-icon="cup-soda">口服液</option><option data-icon="syringe">注射液</option><option data-icon="syringe">预充式注射剂</option><option data-icon="snowflake">冻干粉针剂</option><option data-icon="paintbrush">乳膏 / 软膏</option><option data-icon="eye">滴眼液</option><option data-icon="shapes">其他</option></select></label>
     </div>${medicationColorPickerHTML()}</section>
     <section class="med-form-section"><div class="med-form-section-head"><h3>当前用药阶段</h3><p>结束日期留空表示目前仍在使用</p></div><div class="form-grid three-columns">
       <label><span>开始日期 *</span><input name="startDate" type="date" required /></label><label><span>结束日期</span><input name="endDate" type="date" /></label><label><span>单次剂量 *</span><input name="dose" type="number" step="0.001" required placeholder="0.000" /></label>
@@ -174,10 +227,10 @@ function openMedicationForm(type){
   closeModal($("#medicationModal"));openModal("medicationFormModal");
 }
 function addMedicationRecord(data){
-  const type=data.recordType,name=escapeHTML(data.name),brand=escapeHTML(data.brand||data.category||"未填写品牌"),dose=escapeHTML(data.dose||data.dailyDose||"未填写"),unit=escapeHTML(data.unit||""),frequency=escapeHTML(data.frequency||data.sessionCount?`${data.frequency||data.sessionCount}${data.frequency?"":" 次"}`:"按记录执行"),start=escapeHTML(data.startDate?.replaceAll("-",".")||"未填写"),color=medicationColor(data.color);
+  const type=data.recordType,name=escapeHTML(data.name),brand=escapeHTML(data.brand||data.category||"未填写品牌"),dose=escapeHTML(data.dose||data.dailyDose||"未填写"),unit=escapeHTML(data.unit||""),frequency=escapeHTML(data.frequency||data.sessionCount?`${data.frequency||data.sessionCount}${data.frequency?"":" 次"}`:"按记录执行"),start=escapeHTML(data.startDate?.replaceAll("-",".")||"未填写"),endDate=String(data.endDate||"").trim(),end=escapeHTML(endDate.replaceAll("-",".")),color=medicationColor(data.color),dosageForm=escapeHTML(data.dosageForm||"");
   if(type==="longTerm"||type==="biologic"){
-    const icon=type==="biologic"?"syringe":"pill",status="使用中";
-    $(".medication-cards .wide-empty")?.remove();$(".medication-cards").insertAdjacentHTML("beforeend",`<article class="med-card dynamic-med-card" data-medication-color="${color.value}" data-medication-status="active"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:${color.value}" title="标识颜色：${color.name}"><i data-lucide="${icon}"></i></span><span class="status-badge medication-status status-active">${status}</span></div><h3>${name}</h3><p>${brand}</p><div class="dose"><strong>${dose}</strong><span>${unit}${frequency?` · ${frequency}`:""}</span></div><dl><div><dt>当前阶段</dt><dd>${start} 至今</dd></div><div><dt>最近调整</dt><dd>刚刚 · 开始用药</dd></div></dl><div class="card-actions"><button>${type==="biologic"?"记录给药":"调整剂量"}</button><button class="icon-button small" aria-label="更多操作"><i data-lucide="more-horizontal"></i></button></div></article>`);
+    const icon=medicationDosageIcon(data.dosageForm,type),status=endDate?"已停药":"使用中",statusKey=endDate?"stopped":"active",period=endDate?`${start} 至 ${end}`:`${start} 至今`;
+    $(".medication-cards .wide-empty")?.remove();$(".medication-cards").insertAdjacentHTML("beforeend",`<article class="med-card dynamic-med-card" data-medication-color="${color.value}" data-medication-status="${statusKey}" data-medication-dosage-form="${dosageForm}"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:${color.value}" title="${dosageForm?`剂型：${dosageForm} · `:""}标识颜色：${color.name}"><i data-lucide="${icon}"></i></span><span class="status-badge medication-status status-${statusKey}">${status}</span></div><h3>${name}</h3><p>${brand}</p><div class="dose"><strong>${dose}</strong><span>${unit}${frequency?` · ${frequency}`:""}</span></div><dl><div><dt>用药阶段</dt><dd>${period}</dd></div><div><dt>最近调整</dt><dd>${endDate?`${end} · 结束用药`:"刚刚 · 开始用药"}</dd></div></dl><div class="card-actions"><button>${type==="biologic"?"记录给药":"调整剂量"}</button><button class="icon-button small" aria-label="更多操作"><i data-lucide="more-horizontal"></i></button></div></article>`);
     $("#currentMedicationCount").textContent=$$(".med-card").length;
     const lanes=$("#medicationLanes"),laneExists=$$(".medication-lane",lanes).some(lane=>$(".drug-name",lane)?.textContent.trim()===String(data.name||"").trim());
     if(!laneExists){const laneContent=type==="biologic"?`<div class="lane-track nodes"><i style="left:85%"></i></div>`:`<div class="lane-track"><span class="drug-bar dynamic-drug-bar">${dose}${unit?` ${unit}`:""}${frequency?` · ${frequency}`:""}</span></div>`;$(".causality-note",lanes).insertAdjacentHTML("beforebegin",`<div class="medication-lane" data-medication-name="${name}" style="--med-color:${color.value}"><span class="drug-name">${name}</span>${laneContent}</div>`);}
@@ -198,43 +251,47 @@ function updateLabItemSelection(){
 }
 function appendLabEntry(option){
   if(option.classList.contains("is-added"))return;
-  const {key,name,unit,low,high}=option.dataset;
-  $(".lab-entry-list").insertAdjacentHTML("beforeend",`<div class="lab-entry" data-item-key="${key}"><strong>${name}</strong><label><span>结果</span><input name="${key}Value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="${key}Unit" value="${unit}" /></label><label><span>参考下限</span><input name="${key}Low" type="number" step="0.01" value="${low}" /></label><label><span>参考上限</span><input name="${key}High" type="number" step="0.01" value="${high}" /></label></div>`);
+  const {key,name}=option.dataset;
+  const item=Object.values(indicatorData).map(category=>category.items[key]).find(Boolean);
+  const remembered=rememberedIndicatorFields(item||option.dataset);
+  const unit=remembered.unit??option.dataset.unit??"",low=remembered.low??option.dataset.low??"",high=remembered.high??option.dataset.high??"";
+  $(".lab-entry-list").insertAdjacentHTML("beforeend",`<div class="lab-entry" data-item-key="${key}"><strong>${name}</strong><label><span>结果</span><input name="${key}Value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="${key}Unit" value="${unit}" /></label><label><span>参考下限</span><input name="${key}Low" type="number" step="any" value="${low}" /></label><label><span>参考上限</span><input name="${key}High" type="number" step="any" value="${high}" /></label></div>`);
   option.classList.add("is-added");
   const checkbox=$("input",option);checkbox.checked=false;checkbox.disabled=true;
   option.insertAdjacentHTML("beforeend","<em>已添加</em>");
 }
 
 $$('[data-view]').forEach(button=>button.addEventListener("click",()=>switchView(button.dataset.view)));
-$$('[data-open-modal]').forEach(button=>button.addEventListener("click",()=>openModal(button.dataset.openModal)));
+$$('[data-open-modal]').forEach(button=>button.addEventListener("click",()=>{if(button.dataset.openModal==="quickModal")applyQuickEntryDefaults();if(button.dataset.openModal==="checkModal")applyCheckEntryDefaults();openModal(button.dataset.openModal);}));
 $$('[data-close-modal]').forEach(button=>button.addEventListener("click",()=>closeModal(button.closest(".modal"))));
 $$('.category-tab').forEach(button=>button.addEventListener("click",()=>{ currentCategory=button.dataset.category;currentIndicator=Object.keys(indicatorData[currentCategory].items)[0];$$('.category-tab').forEach(tab=>{const active=tab===button;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",String(active));});renderIndicator(); }));
 $$('.check-category-tab').forEach(button=>button.addEventListener("click",()=>{$$('.check-category-tab').forEach(tab=>{const active=tab===button;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",String(active));});$$('.check-category-panel').forEach(panel=>{const active=panel.dataset.checkPanel===button.dataset.checkCategory;panel.classList.toggle("is-active",active);panel.hidden=!active;});}));
 $$('.chart-controls .segmented button').forEach(button=>button.addEventListener("click",()=>{currentRange=button.dataset.range;button.parentElement.querySelectorAll("button").forEach(b=>b.classList.toggle("is-active",b===button));renderChart();}));
 $$('[data-medication-type]').forEach(button=>button.addEventListener("click",()=>openMedicationForm(button.dataset.medicationType)));
 $('#backToMedicationTypes').addEventListener("click",()=>{closeModal($('#medicationFormModal'));openModal('medicationModal');});
-$('#medicationDetailForm').addEventListener("change",event=>{if(event.target.name!=="color")return;const color=medicationColor(event.target.value),form=event.currentTarget,preview=$(".med-color-preview-icon",form),name=$("[data-med-color-name]",form);if(preview)preview.style.setProperty("--med-icon-bg",color.value);if(name)name.textContent=color.name;});
+$('#medicationDetailForm').addEventListener("change",event=>{const form=event.currentTarget,preview=$(".med-color-preview-icon",form);if(event.target.name==="color"){const color=medicationColor(event.target.value),name=$("[data-med-color-name]",form);if(preview)preview.style.setProperty("--med-icon-bg",color.value);if(name)name.textContent=color.name;}if(event.target.name==="dosageForm"&&preview){preview.innerHTML=`<i data-lucide="${medicationDosageIcon(event.target.value,form.elements.recordType?.value)}"></i>`;if(window.lucide)lucide.createIcons();}});
 $('#medicationSwitch').addEventListener("change",event=>$('#medicationLanes').classList.toggle("is-hidden",!event.target.checked));
 $$('.theme-toggle').forEach(button=>button.addEventListener("click",()=>{const root=document.documentElement,dark=root.dataset.theme!=="dark";root.dataset.theme=dark?"dark":"light";$$('.theme-toggle').forEach(b=>b.innerHTML=`<i data-lucide="${dark?"sun":"moon"}"></i>`);if(window.lucide)lucide.createIcons();}));
 $('#quickForm').addEventListener("submit",event=>{event.preventDefault();saveQuick(event.currentTarget)});
 $('#checkForm').addEventListener("submit",event=>{
   event.preventDefault();
   const form=event.currentTarget,fd=new FormData(form);
-  const map={value:["activity","c3","unit","low","high"],c4Value:["activity","c4","c4Unit","c4Low","c4High"],dsdnaValue:["activity","dsdna","dsdnaUnit","dsdnaLow","dsdnaHigh"],esrValue:["activity","esr","esrUnit","esrLow","esrHigh"],crpValue:["activity","crp","crpUnit","crpLow","crpHigh"],protein24Value:["kidney","protein24","protein24Unit","protein24Low","protein24High"],upcrValue:["kidney","upcr","upcrUnit","upcrLow","upcrHigh"],egfrValue:["kidney","egfr","egfrUnit","egfrLow","egfrHigh"],creatinineValue:["kidney","creatinine","creatinineUnit","creatinineLow","creatinineHigh"],wbcValue:["blood","wbc","wbcUnit","wbcLow","wbcHigh"],hbValue:["blood","hb","hbUnit","hbLow","hbHigh"],plateletsValue:["blood","platelets","plateletsUnit","plateletsLow","plateletsHigh"],iggValue:["other","igg","iggUnit","iggLow","iggHigh"]};
   const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
   const recordDate=String(fd.get("date")||"").trim()||today;
+  const hospital=String(fd.get("hospital")||"").trim()||"未填写医院";
   const optionalNumber=(field,fallback)=>{const raw=fd.get(field);return raw===null||String(raw).trim()===""?fallback:Number(raw);};
   let firstSaved=null,savedCount=0;
 
-  Object.entries(map).forEach(([field,[category,key,unitField,lowField,highField]])=>{
+  Object.entries(checkEntryFields).forEach(([field,[category,key,unitField,lowField,highField]])=>{
     const raw=fd.get(field);
     if(raw===null||String(raw).trim()==="")return;
     const value=Number(raw),item=indicatorData[category]?.items[key];
     if(!item||!Number.isFinite(value))return;
     const unit=String(fd.get(unitField)||"").trim()||item.unit;
     const low=optionalNumber(lowField,item.low),high=optionalNumber(highField,item.high);
+    rememberEntryFields(item,{unit,low,high,hospital});
     item.max=Math.max(item.max||0,high*1.2,value*1.2);
-    item.records.push([recordDate,value,fd.get("hospital")||"未填写医院",fd.get("notes")||"",unit,low,high,item.name]);
+    item.records.push([recordDate,value,hospital,fd.get("notes")||"",unit,low,high,item.name]);
     item.records.sort((a,b)=>a[0].localeCompare(b[0]));
     if(!firstSaved)firstSaved=[category,key];
     savedCount++;
@@ -250,7 +307,7 @@ $('#checkForm').addEventListener("submit",event=>{
   showToast("检查记录已保存",`已记录 ${savedCount} 个已填写指标`);
 });
 $('#indicatorForm').addEventListener("submit",event=>event.preventDefault());
-$('#medicationDetailForm').addEventListener("submit",event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));addMedicationRecord(data);window.dispatchEvent(new CustomEvent("sle:medication-added",{detail:data}));closeModal($('#medicationFormModal'));event.currentTarget.reset();showToast("用药记录已保存",data.recordType==="longTerm"||data.recordType==="biologic"?"已加入当前用药并创建首个阶段":"已加入历年用药时间轴");});
+$('#medicationDetailForm').addEventListener("submit",event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));addMedicationRecord(data);window.dispatchEvent(new CustomEvent("sle:medication-added",{detail:data}));closeModal($('#medicationFormModal'));event.currentTarget.reset();const historical=["longTerm","biologic"].includes(data.recordType)&&data.endDate;showToast(historical?"历史用药已保存":"用药记录已保存",historical?"已加入“暂停/停止”列表和历年用药时间轴":data.recordType==="longTerm"||data.recordType==="biologic"?"已加入当前用药并创建首个阶段":"已加入历年用药时间轴");});
 $$('.lab-item-option input:not(:disabled)').forEach(input=>input.addEventListener("change",updateLabItemSelection));
 $('#labItemSearch').addEventListener("input",event=>{const query=event.target.value.trim().toLowerCase();let visibleCount=0;$$('.lab-item-group').forEach(group=>{let groupCount=0;$$('.lab-item-option',group).forEach(option=>{const visible=!query||option.dataset.search.toLowerCase().includes(query);option.hidden=!visible;if(visible){groupCount++;visibleCount++;}});group.hidden=!groupCount;});$('#labItemEmpty').classList.toggle("is-visible",!visibleCount);});
 $('#addSelectedLabItems').addEventListener("click",()=>{const selected=$$(".lab-item-option input:checked",$('#labItemGroups'));selected.forEach(input=>appendLabEntry(input.closest('.lab-item-option')));updateLabItemSelection();closeModal($('#labItemModal'));if(window.lucide)lucide.createIcons();});
