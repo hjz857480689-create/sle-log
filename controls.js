@@ -34,7 +34,7 @@
         <div class="calendar-month-panel" hidden><div class="calendar-month-grid" role="listbox" aria-label="选择月份"></div></div>
         <div class="calendar-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
         <div class="calendar-days" role="grid"></div>
-        <footer><button type="button" class="calendar-clear">清除</button><button type="button" class="calendar-today">今天</button></footer>
+        <footer><div class="calendar-footer-secondary"><button type="button" class="calendar-clear">清除</button><button type="button" class="calendar-today">今天</button></div><button type="button" class="calendar-confirm">确认</button></footer>
       </section>
     </div>
   `);
@@ -45,6 +45,7 @@
   let activeDate = null;
   let activeTrigger = null;
   let calendarView = new Date();
+  let pendingDateValue = "";
 
   const optionHints = {
     activity: "补体、炎症与自身抗体",
@@ -119,7 +120,7 @@
     picker.setAttribute("aria-hidden", "true");
     document.querySelectorAll('.enhanced-control-button[aria-expanded="true"]').forEach(button => button.setAttribute("aria-expanded", "false"));
     if (picker === selectPicker) activeSelect = null;
-    if (picker === calendarPicker) activeDate = null;
+    if (picker === calendarPicker) { activeDate = null; pendingDateValue = ""; }
     if (!document.querySelector(".control-picker.is-open")) document.body.classList.remove("control-picker-open");
     const triggerToRestore = activeTrigger;
     activeTrigger = null;
@@ -276,7 +277,7 @@
       const day = index - offset + 1;
       if (day < 1 || day > daysInMonth) { cells.push('<span class="calendar-day-empty"></span>'); continue; }
       const value = `${year}-${pad(month + 1)}-${pad(day)}`;
-      const selected = activeDate.value === value;
+      const selected = pendingDateValue === value;
       const today = todayValue === value;
       const allowed = dateAllowed(activeDate, value);
       cells.push(`<button type="button" role="gridcell" data-date-value="${value}" aria-selected="${selected}" ${allowed ? "" : "disabled"} class="${today ? "is-today" : ""} ${selected ? "is-selected" : ""}"><span>${day}</span></button>`);
@@ -289,6 +290,7 @@
   function openCalendar(input, trigger) {
     document.querySelectorAll(".control-picker.is-open").forEach(open => closePicker(open, false));
     activeDate = input;
+    pendingDateValue = input.value;
     calendarView = parseDate(input.value);
     calendarPicker.querySelector("#calendarControlTitle").textContent = fieldLabel(input);
     renderCalendar();
@@ -304,6 +306,13 @@
     input.dispatchEvent(new Event("change", { bubbles: true }));
     syncDate(input);
     closePicker(calendarPicker);
+  }
+
+  function previewDateValue(value) {
+    if (!activeDate || (value && !dateAllowed(activeDate, value))) return;
+    pendingDateValue = value;
+    if (value) calendarView = parseDate(value);
+    renderCalendar();
   }
 
   function enhanceDate(input) {
@@ -323,7 +332,13 @@
     button.setAttribute("aria-expanded", "false");
     button.innerHTML = `<span class="enhanced-control-value"></span><i data-lucide="calendar-days"></i>`;
     wrapper.appendChild(button);
-    button.addEventListener("click", () => openCalendar(input, button));
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      openCalendar(input, button);
+    });
+    input.addEventListener("focus", () => input.blur());
+    input.addEventListener("click", event => event.preventDefault());
     input.addEventListener("invalid", event => { event.preventDefault(); openCalendar(input, button); });
     input.addEventListener("change", () => syncDate(input));
     syncDate(input);
@@ -364,9 +379,10 @@
     if (monthToggle) { setCalendarPickerMode(monthToggle.getAttribute("aria-expanded") === "true" ? "days" : "months"); return; }
     const move = event.target.closest("[data-calendar-move]");
     if (move) { calendarView = new Date(calendarView.getFullYear(), calendarView.getMonth() + Number(move.dataset.calendarMove), 1); renderCalendar(); return; }
-    const day = event.target.closest("[data-date-value]"); if (day) { setDateValue(day.dataset.dateValue); return; }
-    if (event.target.closest(".calendar-today")) { setDateValue(toDateValue(new Date())); return; }
-    if (event.target.closest(".calendar-clear")) { setDateValue(""); return; }
+    const day = event.target.closest("[data-date-value]"); if (day) { previewDateValue(day.dataset.dateValue); return; }
+    if (event.target.closest(".calendar-today")) { previewDateValue(toDateValue(new Date())); return; }
+    if (event.target.closest(".calendar-clear")) { previewDateValue(""); return; }
+    if (event.target.closest(".calendar-confirm")) { setDateValue(pendingDateValue); return; }
     if (event.target.closest("[data-control-close]")) closePicker(calendarPicker);
   });
 

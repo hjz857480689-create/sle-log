@@ -8,6 +8,16 @@
   const normalizeUsername = value => String(value || "").trim().toLowerCase();
   const validUsername = value => /^[\p{Script=Han}A-Za-z0-9_]{3,20}$/u.test(String(value || "").trim());
   const validPassword = value => /^(?=.*[A-Za-z])(?=.*\d).{8,20}$/.test(String(value || ""));
+  const emptyIndicatorState = () => {
+    const indicators = clone(indicatorData);
+    Object.values(indicators).forEach(category => Object.values(category.items).forEach(item => { item.records = []; }));
+    return indicators;
+  };
+  const demoMedicationLogs = {
+    "泼尼松": { status: "使用中", stages: [{ date: "2026-02-18", type: "减少剂量", dose: "15", unit: "mg", frequency: "每日一次", reason: "病情稳定" }], administrations: [], observations: [] },
+    "吗替麦考酚酯": { status: "使用中", stages: [{ date: "2025-09-03", type: "开始用药", dose: "0.5", unit: "g", frequency: "每日两次", reason: "维持治疗" }], administrations: [], observations: [] },
+    "贝利尤单抗": { status: "治疗中", stages: [], administrations: [{ date: "2026-06-26", dose: "200", unit: "mg", hospital: "仁济医院", status: "按计划完成", adverse: "无" }], observations: [] }
+  };
   const defaultState = {
     version: 2,
     session: isLocalDemo,
@@ -15,16 +25,14 @@
       ? { nickname: "韩锦泽", username: "hanjinze", createdAt: "2024.08.16" }
       : { nickname: "新用户", username: "", createdAt: today().replaceAll("-", ".") },
     account: isLocalDemo ? { password: "Sle@1234" } : {},
-    indicators: null,
+    // Prototype data is available only in the explicit localhost demo. A real
+    // account must never inherit records from the static HTML prototype.
+    indicators: isLocalDemo ? null : emptyIndicatorState(),
     addedMedicationRecords: [],
     deletedMedicationNames: [],
     medicationColors: {},
-    medicationLogs: {
-      "泼尼松": { status: "使用中", stages: [{ date: "2026-02-18", type: "减少剂量", dose: "15", unit: "mg", frequency: "每日一次", reason: "病情稳定" }], administrations: [], observations: [] },
-      "吗替麦考酚酯": { status: "使用中", stages: [{ date: "2025-09-03", type: "开始用药", dose: "0.5", unit: "g", frequency: "每日两次", reason: "维持治疗" }], administrations: [], observations: [] },
-      "贝利尤单抗": { status: "治疗中", stages: [], administrations: [{ date: "2026-06-26", dose: "200", unit: "mg", hospital: "仁济医院", status: "按计划完成", adverse: "无" }], observations: [] }
-    },
-    medicationsCleared: false,
+    medicationLogs: isLocalDemo ? clone(demoMedicationLogs) : {},
+    medicationsCleared: !isLocalDemo,
     lastSync: "今天 09:42"
   };
 
@@ -37,8 +45,7 @@
       username: normalizeUsername(user?.user_metadata?.username),
       createdAt: today().replaceAll("-", ".")
     };
-    result.indicators = clone(indicatorData);
-    Object.values(result.indicators).forEach(category => Object.values(category.items).forEach(item => { item.records = []; }));
+    result.indicators = emptyIndicatorState();
     result.addedMedicationRecords = [];
     result.deletedMedicationNames = [];
     result.medicationColors = {};
@@ -76,6 +83,21 @@
   state.addedMedicationRecords ||= [];
   state.deletedMedicationNames ||= [];
   state.medicationColors ||= {};
+  let cleanedPrototypeMedicationData = false;
+  if (!isLocalDemo) {
+    const ownedMedicationNames = new Set(state.addedMedicationRecords.map(record => String(record?.name || "").trim()).filter(Boolean));
+    const ownEntriesOnly = source => Object.fromEntries(Object.entries(source || {}).filter(([name]) => ownedMedicationNames.has(name)));
+    const medicationLogs = ownEntriesOnly(state.medicationLogs);
+    const medicationColors = ownEntriesOnly(state.medicationColors);
+    const hasVisibleMedication = state.addedMedicationRecords.some(record => !state.deletedMedicationNames.includes(record.name));
+    cleanedPrototypeMedicationData = Object.keys(medicationLogs).length !== Object.keys(state.medicationLogs).length
+      || Object.keys(medicationColors).length !== Object.keys(state.medicationColors).length
+      || state.medicationsCleared !== !hasVisibleMedication;
+    state.medicationLogs = medicationLogs;
+    state.medicationColors = medicationColors;
+    state.medicationsCleared = !hasVisibleMedication;
+    if (cleanedPrototypeMedicationData && cloudUser) await cloud.saveState(state);
+  }
 
   document.body.insertAdjacentHTML("beforeend", `
     <div class="modal compact-modal" id="confirmModal" aria-hidden="true" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
@@ -145,15 +167,17 @@
   }
   function showAuth(show) { document.querySelector("#authShell").hidden = !show; document.querySelector("#appShell").hidden = show; document.body.classList.toggle("auth-visible", show); if (window.lucide) lucide.createIcons(); }
   function switchAuthView(target) { document.querySelectorAll("[data-auth-view]").forEach(view => { const active = view.dataset.authView === target; view.classList.toggle("is-active", active); view.querySelector("[data-form-error]")?.replaceChildren(); }); if (window.lucide) lucide.createIcons(); }
+  function clearMedicationUI() {
+    document.querySelectorAll(".med-card, .timeline-row, .medication-lane").forEach(node => node.remove());
+    document.querySelector("#currentMedicationCount").textContent = "0";
+    document.querySelector(".medication-cards").innerHTML = `<div class="wide-empty"><span><i data-lucide="pill"></i></span><strong>还没有当前用药</strong><small>点击“添加用药”建立第一条用药阶段。</small></div>`;
+  }
 
   if (state.indicators) {
     Object.keys(indicatorData).forEach(category => { if (state.indicators[category]?.items) indicatorData[category].items = state.indicators[category].items; });
   }
-  if (state.medicationsCleared) {
-    document.querySelectorAll(".med-card, .timeline-row").forEach(node => node.remove());
-    document.querySelector("#currentMedicationCount").textContent = "0";
-    document.querySelector(".medication-cards").innerHTML = `<div class="wide-empty"><span><i data-lucide="pill"></i></span><strong>还没有当前用药</strong><small>点击“添加用药”建立第一条用药阶段。</small></div>`;
-  } else {
+  if (!isLocalDemo || state.medicationsCleared) clearMedicationUI();
+  if (!state.medicationsCleared) {
     state.deletedMedicationNames.forEach(name => removeMedicationFromUI(name));
     state.addedMedicationRecords.filter(record => !state.deletedMedicationNames.includes(record.name)).forEach(record => addMedicationRecord(record));
   }
@@ -339,7 +363,7 @@
     if (action === "export-med-csv") { downloadFile(`sle-log-medications-${today()}.csv`, `\ufeff${exportMedicationsCsv()}`, "text/csv;charset=utf-8"); showToast("用药表格已导出", "阶段、给药和观察记录已生成 CSV 文件"); }
     if (action === "import-json") document.querySelector("#backupFileInput").click();
     if (action === "clear-indicators") confirmAction("删除全部指标数据？", "所有指标的历史结果会被清空，自定义指标设置仍会保留。", "删除指标数据", () => { Object.values(indicatorData).forEach(category => Object.values(category.items).forEach(item => item.records = [])); renderIndicator(); persist(); showToast("指标数据已清空", "指标设置和分类仍然保留"); });
-    if (action === "clear-medications") confirmAction("删除全部用药数据？", "当前用药、治疗阶段、给药和观察记录都会被清空。", "删除用药数据", () => { state.addedMedicationRecords = []; state.deletedMedicationNames = []; state.medicationColors = {}; state.medicationLogs = {}; state.medicationsCleared = true; document.querySelectorAll(".med-card, .timeline-row").forEach(node => node.remove()); document.querySelector("#currentMedicationCount").textContent = "0"; document.querySelector(".medication-cards").innerHTML = `<div class="wide-empty"><span><i data-lucide="pill"></i></span><strong>还没有当前用药</strong><small>点击“添加用药”建立第一条用药阶段。</small></div>`; persist(); showToast("用药数据已清空", "可以随时重新添加记录"); if (window.lucide) lucide.createIcons(); });
+    if (action === "clear-medications") confirmAction("删除全部用药数据？", "当前用药、治疗阶段、给药和观察记录都会被清空。", "删除用药数据", () => { state.addedMedicationRecords = []; state.deletedMedicationNames = []; state.medicationColors = {}; state.medicationLogs = {}; state.medicationsCleared = true; clearMedicationUI(); persist(); showToast("用药数据已清空", "可以随时重新添加记录"); if (window.lucide) lucide.createIcons(); });
   }
   document.querySelector("#exportIndicatorCsv")?.addEventListener("click", () => downloadFile(`${currentItem().short}-${today()}.csv`, `\ufeff${exportIndicatorsCsv()}`, "text/csv;charset=utf-8"));
   document.querySelector("#backupFileInput").addEventListener("change", async event => { const file = event.target.files[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!imported.profile || !imported.indicators) throw new Error("invalid"); delete imported.account; delete imported.session; if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify({ ...imported, session: false })); else { const saved = await cloud.flush(imported); if (saved.error) throw saved.error; } showToast("备份验证成功", "页面将重新载入恢复后的数据"); setTimeout(() => location.reload(), 700); } catch { showToast("无法恢复备份", "请选择由 SLE记录簿导出的有效 JSON 文件"); } event.target.value = ""; });
