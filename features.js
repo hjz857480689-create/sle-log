@@ -83,13 +83,34 @@
   state.addedMedicationRecords ||= [];
   state.deletedMedicationNames ||= [];
   state.medicationColors ||= {};
+  const medicationDateValue = value => {
+    const timestamp = Date.parse(String(value || "").trim());
+    return Number.isFinite(timestamp) ? timestamp : -Infinity;
+  };
+  const lifecycleStatus = type => ({ "暂停用药": "已暂停", "停止用药": "已停药", "恢复用药": "使用中" })[type];
   let correctedHistoricalMedicationStatus = false;
-  state.addedMedicationRecords.forEach(record => {
-    if (!String(record?.endDate || "").trim()) return;
-    const log = state.medicationLogs[record.name];
-    const isInitialStageOnly = log && (log.stages?.length || 0) <= 1;
-    if (isInitialStageOnly && log.status !== "已停药") {
-      log.status = "已停药";
+  new Set(state.addedMedicationRecords.map(record => String(record?.name || "").trim()).filter(Boolean)).forEach(name => {
+    const records = state.addedMedicationRecords.filter(record => String(record?.name || "").trim() === name);
+    const latestRecord = records.reduce((latest, record) => medicationDateValue(record.startDate) >= medicationDateValue(latest?.startDate) ? record : latest, null);
+    const log = state.medicationLogs[name];
+    if (!latestRecord || !log) return;
+    const stages = log.stages || [];
+    let latestStartStageIndex = -1;
+    for (let index = stages.length - 1; index >= 0; index -= 1) {
+      const stage = stages[index];
+      if (stage.type === "开始用药" && medicationDateValue(stage.date) === medicationDateValue(latestRecord.startDate)) {
+        latestStartStageIndex = index;
+        break;
+      }
+    }
+    const latestLifecycle = stages.map((stage, index) => ({ stage, index })).filter(({ stage, index }) => lifecycleStatus(stage.type) && (latestStartStageIndex >= 0 ? index > latestStartStageIndex : medicationDateValue(stage.date) >= medicationDateValue(latestRecord.startDate))).at(-1)?.stage;
+    const inferredStatus = latestLifecycle ? lifecycleStatus(latestLifecycle.type) : String(latestRecord.endDate || "").trim() ? "已停药" : "使用中";
+    if (inferredStatus === "已停药" && latestLifecycle?.type === "停止用药" && !String(latestRecord.endDate || "").trim()) {
+      latestRecord.endDate = latestLifecycle.date;
+      correctedHistoricalMedicationStatus = true;
+    }
+    if (log.status !== inferredStatus) {
+      log.status = inferredStatus;
       correctedHistoricalMedicationStatus = true;
     }
   });
@@ -115,7 +136,7 @@
       <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact confirm-panel"><span class="confirm-icon"><i data-lucide="alert-triangle"></i></span><h2 id="confirmTitle">确认操作</h2><p id="confirmDescription"></p><div class="modal-actions"><button class="button secondary" type="button" data-feature-close>取消</button><button class="button destructive" type="button" id="confirmActionButton">确认</button></div></div>
     </div>
     <div class="modal compact-modal" id="recordEditModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="recordEditTitle">
-      <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact"><div class="modal-header"><div><p class="section-kicker">EDIT RESULT</p><h2 id="recordEditTitle">编辑检查记录</h2><p>修改后，最新结果和趋势图会同步更新。</p></div><button class="icon-button" data-feature-close aria-label="关闭"><i data-lucide="x"></i></button></div><form id="recordEditForm"><input type="hidden" name="originalDate" /><div class="form-grid one-column"><label><span>检查日期 *</span><input name="date" type="date" required /></label><div class="inline-fields"><label><span>检查结果 *</span><input name="value" type="number" step="0.001" required /></label><label><span>单位</span><input name="unit" /></label></div><div class="inline-fields"><label><span>参考下限</span><input name="low" type="number" step="0.001" /></label><label><span>参考上限</span><input name="high" type="number" step="0.001" /></label></div><label><span>医院</span><input name="hospital" /></label><label><span>备注</span><textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="button secondary" type="button" data-feature-close>取消</button><button class="button primary" type="submit">保存修改</button></div></form></div>
+      <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact"><div class="modal-header"><div><p class="section-kicker">编辑结果</p><h2 id="recordEditTitle">编辑检查记录</h2><p>修改后，最新结果和趋势图会同步更新。</p></div><button class="icon-button" data-feature-close aria-label="关闭"><i data-lucide="x"></i></button></div><form id="recordEditForm"><input type="hidden" name="originalDate" /><div class="form-grid one-column"><label><span>检查日期 *</span><input name="date" type="date" required /></label><div class="inline-fields"><label><span>检查结果 *</span><input name="value" type="number" step="0.001" required /></label><label><span>单位</span><input name="unit" /></label></div><label data-edit-urine-volume hidden><span>24 小时尿量（选填）</span><span class="fixed-unit-input"><input name="urineVolume" type="number" step="1" min="0" inputmode="decimal" /><b>毫升</b></span></label><div class="inline-fields"><label><span>参考下限</span><input name="low" type="number" step="0.001" /></label><label><span>参考上限</span><input name="high" type="number" step="0.001" /></label></div><label><span>医院</span><input name="hospital" /></label><label><span>备注</span><textarea name="notes"></textarea></label></div><div class="modal-actions"><button class="button secondary" type="button" data-feature-close>取消</button><button class="button primary" type="submit">保存修改</button></div></form></div>
     </div>
     <div class="modal compact-modal" id="indicatorSettingsModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="indicatorSettingsTitle">
       <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact"><div class="modal-header"><div><p class="section-kicker">INDICATOR SETTINGS</p><h2 id="indicatorSettingsTitle">指标设置</h2><p>默认设置只影响之后录入的数据，不改变历史记录。</p></div><button class="icon-button" data-feature-close aria-label="关闭"><i data-lucide="x"></i></button></div><form id="indicatorSettingsForm"><div class="form-grid one-column"><label><span>指标名称</span><input name="name" required /></label><label><span>指标简称</span><input name="shortName" /></label><label><span>默认单位</span><input name="unit" /></label><div class="inline-fields"><label><span>默认参考下限</span><input name="low" type="number" step="0.001" /></label><label><span>默认参考上限</span><input name="high" type="number" step="0.001" /></label></div></div><div class="indicator-order-actions"><button type="button" data-order-action="left"><i data-lucide="arrow-left"></i>向前移动</button><button type="button" data-order-action="right">向后移动<i data-lucide="arrow-right"></i></button></div><div class="modal-actions"><button class="button secondary" type="button" id="hideIndicatorButton">隐藏指标</button><button class="button primary" type="submit">保存设置</button></div></form></div>
@@ -131,7 +152,7 @@
     </div>
   `);
   document.querySelector(".med-action-list").insertAdjacentHTML("beforeend", `<button class="danger-action" data-med-task="delete"><i data-lucide="trash-2"></i><span><strong>删除用药</strong><small>删除错误添加的药品及其全部记录</small></span><i data-lucide="chevron-right"></i></button>`);
-  document.querySelector('[data-med-task="details"]').insertAdjacentHTML("afterend", `<button data-med-task="color"><i data-lucide="palette"></i><span><strong>修改标识颜色</strong><small>同步更新卡片、同期用药与时间轴</small></span><i data-lucide="chevron-right"></i></button>`);
+  document.querySelector('[data-med-task="details"]').insertAdjacentHTML("afterend", `<button data-med-task="color"><i data-lucide="palette"></i><span><strong>修改标识颜色</strong><small>同步更新药品卡片与历年用药时间轴</small></span><i data-lucide="chevron-right"></i></button>`);
 
   let pendingConfirm = null;
   let selectedMedication = "";
@@ -150,6 +171,7 @@
   function persist() {
     state.indicators = clone(indicatorData);
     renderMedicationTimeline();
+    window.renderIndicatorList?.();
     if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify(state));
     else if (cloud?.configured && cloudUser) cloud.queueSave(state);
     updateProfileUI();
@@ -229,7 +251,7 @@
   });
 
   window.addEventListener("sle:data-changed", persist);
-  window.addEventListener("sle:medication-added", event => { const record = event.detail; state.addedMedicationRecords.push(record); state.deletedMedicationNames = state.deletedMedicationNames.filter(name => name !== record.name); state.medicationsCleared = false; const initialStatus = String(record.endDate || "").trim() ? "已停药" : "使用中"; const log = state.medicationLogs[record.name] ||= { status: initialStatus, stages: [], administrations: [], observations: [] }; if (["longTerm", "biologic"].includes(record.recordType) && !log.stages.length) { log.status = initialStatus; log.stages.push({ date: record.startDate, endDate: record.endDate, type: "开始用药", brand: record.brand, dose: record.dose, unit: record.unit, frequency: record.frequency, route: record.route, instruction: record.instruction, reason: record.purpose, notes: record.notes }); } refreshMedicationCardStates(); persist(); });
+  window.addEventListener("sle:medication-added", event => { const record = event.detail; state.addedMedicationRecords.push(record); state.deletedMedicationNames = state.deletedMedicationNames.filter(name => name !== record.name); state.medicationsCleared = false; const initialStatus = String(record.endDate || "").trim() ? "已停药" : "使用中"; const log = state.medicationLogs[record.name] ||= { status: initialStatus, stages: [], administrations: [], observations: [] }; if (["longTerm", "biologic"].includes(record.recordType)) { log.status = initialStatus; log.stages.push({ date: record.startDate, endDate: record.endDate, type: "开始用药", brand: record.brand, dose: record.dose, unit: record.unit, frequency: record.frequency, route: record.route, instruction: record.instruction, reason: record.purpose, notes: record.notes }); } refreshMedicationCardStates(); persist(); });
 
   document.addEventListener("click", event => {
     const medicationViewButton = event.target.closest('[data-view="medications"]'); if (medicationViewButton) setTimeout(() => renderMedicationTimeline(), 0);
@@ -244,7 +266,7 @@
     const passwordToggle = event.target.closest("[data-password-toggle]"); if (passwordToggle) { const input = passwordToggle.parentElement.querySelector("input"); const reveal = input.type === "password"; input.type = reveal ? "text" : "password"; passwordToggle.setAttribute("aria-pressed", String(reveal)); passwordToggle.setAttribute("aria-label", reveal ? "隐藏密码" : "显示密码"); passwordToggle.innerHTML = `<i data-lucide="${reveal ? "eye-off" : "eye"}"></i>`; if (window.lucide) lucide.createIcons(); input.focus(); return; }
     const close = event.target.closest("[data-feature-close]"); if (close) { closeFeatureModal(close.closest(".modal")); return; }
     const authTarget = event.target.closest("[data-auth-target]"); if (authTarget) { switchAuthView(authTarget.dataset.authTarget); return; }
-    const historyButton = event.target.closest("[data-history-action]"); if (historyButton) { handleHistoryAction(historyButton.dataset.historyAction, historyButton.dataset.recordDate); return; }
+    const historyButton = event.target.closest("[data-history-action]"); if (historyButton) { handleHistoryAction(historyButton.dataset.historyAction, historyButton.dataset.recordDate, historyButton.dataset.indicatorRecord || currentIndicator); return; }
     const accountButton = event.target.closest("[data-account-action]"); if (accountButton) { handleAccountAction(accountButton.dataset.accountAction); return; }
     const dataButton = event.target.closest("[data-data-action]"); if (dataButton) { handleDataAction(dataButton.dataset.dataAction); return; }
     const orderButton = event.target.closest("[data-order-action]"); if (orderButton) { moveIndicator(orderButton.dataset.orderAction); return; }
@@ -313,12 +335,13 @@
   document.querySelector("#indicatorSettingsForm").addEventListener("submit", event => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), item = currentItem(); item.name = data.name; item.short = data.shortName || data.name; item.unit = data.unit || item.unit; item.low = Number(data.low); item.high = Number(data.high); item.max = Math.max(item.max || 0, item.high * 1.2); renderIndicator(); persist(); closeFeatureModal(document.querySelector("#indicatorSettingsModal")); showToast("指标设置已保存", "历史记录快照保持不变"); });
   document.querySelector("#hideIndicatorButton").addEventListener("click", () => confirmAction("隐藏这个指标？", "隐藏后可以从添加指标窗口恢复显示，历史数据不会删除。", "隐藏指标", () => { currentItem().isHidden = true; const next = Object.entries(indicatorData[currentCategory].items).find(([, item]) => !item.isHidden); if (next) currentIndicator = next[0]; renderIndicator(); persist(); closeFeatureModal(document.querySelector("#indicatorSettingsModal")); showToast("指标已隐藏", "历史数据仍然保留"); }));
 
-  function handleHistoryAction(action, date) {
+  function handleHistoryAction(action, date, indicatorKey = currentIndicator) {
+    if (indicatorKey && indicatorData[currentCategory]?.items?.[indicatorKey]) currentIndicator = indicatorKey;
     const item = currentItem(), record = item.records.find(row => row[0] === date); if (!record) return;
     if (action === "delete") { confirmAction("删除这条检查记录？", `${formatLongDate(date)} 的 ${item.short} 结果将被永久删除。`, "删除记录", () => { item.records = item.records.filter(row => row !== record); renderIndicator(); persist(); showToast("记录已删除", "趋势图和最新结果已更新"); }); return; }
-    const form = document.querySelector("#recordEditForm"); form.elements.originalDate.value = date; form.elements.date.value = record[0]; form.elements.value.value = record[1]; form.elements.unit.value = record[4] || item.unit; form.elements.low.value = record[5] ?? item.low; form.elements.high.value = record[6] ?? item.high; form.elements.hospital.value = record[2]; form.elements.notes.value = record[3]; document.querySelector("#recordEditTitle").textContent = `编辑 ${item.short} 记录`; openFeatureModal("recordEditModal");
+    const form = document.querySelector("#recordEditForm"),isProtein24=currentCategory==="kidney"&&indicatorKey==="protein24",volumeField=form.querySelector("[data-edit-urine-volume]"); form.elements.originalDate.value = date; form.elements.date.value = record[0]; form.elements.date.dispatchEvent(new Event("change", { bubbles: true })); form.elements.value.value = record[1]; form.elements.unit.value = record[4] || item.unit; form.elements.low.value = record[5] ?? item.low; form.elements.high.value = record[6] ?? item.high; form.elements.hospital.value = record[2]; form.elements.notes.value = record[3]; volumeField.hidden=!isProtein24;form.elements.urineVolume.disabled=!isProtein24;form.elements.urineVolume.value=isProtein24&&record?.[8]?.volume!==undefined?record[8].volume:""; document.querySelector("#recordEditTitle").textContent = `编辑 ${item.short} 记录`; openFeatureModal("recordEditModal");
   }
-  document.querySelector("#recordEditForm").addEventListener("submit", event => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), item = currentItem(), record = item.records.find(row => row[0] === data.originalDate); if (!record) return; record[0] = data.date; record[1] = Number(data.value); record[2] = data.hospital || "未填写医院"; record[3] = data.notes || ""; record[4] = data.unit; record[5] = data.low === "" ? item.low : Number(data.low); record[6] = data.high === "" ? item.high : Number(data.high); item.max = Math.max(item.max || 0, record[6] * 1.2, record[1] * 1.2); item.records.sort((a, b) => a[0].localeCompare(b[0])); renderIndicator(); persist(); closeFeatureModal(document.querySelector("#recordEditModal")); showToast("记录已更新", "趋势图和最新结果已同步"); });
+  document.querySelector("#recordEditForm").addEventListener("submit", event => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)), item = currentItem(), record = item.records.find(row => row[0] === data.originalDate); if (!record) return; record[0] = data.date; record[1] = Number(data.value); record[2] = data.hospital || "未填写医院"; record[3] = data.notes || ""; record[4] = data.unit; record[5] = data.low === "" ? item.low : Number(data.low); record[6] = data.high === "" ? item.high : Number(data.high); if(currentCategory==="kidney"&&currentIndicator==="protein24"){const raw=data.urineVolume;if(raw!==undefined&&String(raw).trim()!=="")record[8]={volume:Number(raw)};else delete record[8];} item.max = Math.max(item.max || 0, record[6] * 1.2, record[1] * 1.2); item.records.sort((a, b) => a[0].localeCompare(b[0])); renderIndicator(); persist(); closeFeatureModal(document.querySelector("#recordEditModal")); showToast("记录已更新", "趋势图和最新结果已同步"); });
 
   function moveIndicator(direction) { const items = indicatorData[currentCategory].items, entries = Object.entries(items), index = entries.findIndex(([key]) => key === currentIndicator), target = direction === "left" ? index - 1 : index + 1; if (target < 0 || target >= entries.length) { showToast("无法继续移动", "已经位于当前方向的末端"); return; } [entries[index], entries[target]] = [entries[target], entries[index]]; indicatorData[currentCategory].items = Object.fromEntries(entries); renderPicker(); persist(); }
 
@@ -378,23 +401,92 @@
     showToast(data.type === "password" ? "登录密码已更新" : "账号信息已更新", data.type === "password" ? "下次登录请使用新密码" : data.type === "username" ? "下次登录请使用新用户名" : "新的信息已生效");
   });
 
-  function exportIndicatorsCsv() { const rows = [["分类", "指标", "日期", "结果", "单位", "参考下限", "参考上限", "医院", "备注"]]; Object.values(indicatorData).forEach(category => Object.values(category.items).forEach(item => item.records.forEach(record => rows.push([category.label, record[7] || item.name, record[0], record[1], record[4] || item.unit, record[5] ?? item.low, record[6] ?? item.high, record[2], record[3]])))); return rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); }
-  function exportMedicationsCsv() {
+  function indicatorExcelRows() {
+    const rows = [["分类", "指标", "日期", "结果", "单位", "参考下限", "参考上限", "24 小时尿量", "尿量单位", "医院", "备注"]];
+    Object.values(indicatorData).forEach(category => Object.values(category.items).forEach(item => item.records.forEach(record => {const raw=record?.[8]?.volume,hasVolume=raw!==undefined&&raw!==null&&String(raw).trim()!=="";rows.push([category.label, record[7] || item.name, record[0], record[1], record[4] || item.unit, record[5] ?? item.low, record[6] ?? item.high, hasVolume?Number(raw):"", hasVolume?"毫升":"", record[2] || "", record[3] || ""]);} )));
+    return rows;
+  }
+  function medicationExcelRows() {
     const rows = [["药物", "记录类型", "日期", "状态", "剂量", "单位", "频率或方案", "地点", "内容或原因"]], loggedNames = new Set(Object.keys(state.medicationLogs));
     document.querySelectorAll(".med-card").forEach(card => { const name = medicationNameFromCard(card); if (loggedNames.has(name)) return; const dose = card.querySelector(".dose strong")?.textContent.trim() || "", detail = card.querySelector(".dose span")?.textContent.trim() || "", status = card.querySelector(".status-badge")?.textContent.trim() || ""; rows.push([name, "当前用药", "", status, dose, "", detail, "", card.querySelector("p")?.textContent.trim() || ""]); });
-    Object.entries(state.medicationLogs).forEach(([name, log]) => { (log.stages || []).forEach(item => rows.push([name, "用药阶段", item.date, log.status || "", item.dose, item.unit, item.frequency, "", item.reason || item.type || item.notes])); (log.administrations || []).forEach(item => rows.push([name, "实际给药", item.date, item.status, item.dose, item.unit, "", item.hospital, item.adverse || item.notes])); (log.observations || []).forEach(item => rows.push([name, "观察记录", item.date, "", "", "", item.type, "", item.content])); });
-    return rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+    Object.entries(state.medicationLogs).forEach(([name, log]) => {
+      (log.stages || []).forEach(item => rows.push([name, "用药阶段", item.date || "", log.status || "", item.dose || "", item.unit || "", item.frequency || "", "", item.reason || item.type || item.notes || ""]));
+      (log.administrations || []).forEach(item => rows.push([name, "实际给药", item.date || "", item.status || "", item.dose || "", item.unit || "", "", item.hospital || "", item.adverse || item.notes || ""]));
+      (log.observations || []).forEach(item => rows.push([name, "观察记录", item.date || "", "", "", "", item.type || "", "", item.content || ""]));
+    });
+    return rows;
+  }
+  function excelSheet(rows, widths) {
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = widths.map(width => ({ wch: width }));
+    if (rows[0]?.length) sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(0, rows.length - 1), c: rows[0].length - 1 } }) };
+    return sheet;
+  }
+  function appendExcelSheet(workbook, name, rows, widths) {
+    XLSX.utils.book_append_sheet(workbook, excelSheet(rows, widths), name);
+  }
+  function excelLibraryReady() {
+    if (window.XLSX) return true;
+    showToast("暂时无法导出", "Excel 组件未成功加载，请刷新页面后重试");
+    return false;
+  }
+  function cleanBackupState() {
+    persist();
+    const backup = clone(state);
+    delete backup.account;
+    backup.session = false;
+    return backup;
+  }
+  function addRecoverySheet(workbook, backup) {
+    const json = JSON.stringify(backup), size = 30000, chunks = [];
+    for (let index = 0; index < json.length; index += size) chunks.push([chunks.length + 1, json.slice(index, index + size)]);
+    appendExcelSheet(workbook, "恢复数据", [["顺序", "恢复数据（请勿修改此工作表）"], ...chunks], [10, 110]);
+    workbook.Workbook ||= {};
+    workbook.Workbook.Sheets = workbook.SheetNames.map(name => ({ name, Hidden: name === "恢复数据" ? 1 : 0 }));
+  }
+  function exportExcel(kind) {
+    if (!excelLibraryReady()) return;
+    const workbook = XLSX.utils.book_new(), date = today();
+    workbook.Props = { Title: "SLE记录簿数据", Subject: "个人疾病管理记录", Author: "SLE记录簿", CreatedDate: new Date() };
+    if (kind === "backup") {
+      const backup = cleanBackupState();
+      appendExcelSheet(workbook, "账户信息", [["项目", "内容"], ["昵称", state.profile.nickname || ""], ["用户名", state.profile.username || ""], ["加入时间", state.profile.createdAt || ""], ["导出时间", new Date().toLocaleString("zh-CN")], ["说明", "本文件包含个人健康记录，请妥善保管。"]], [18, 56]);
+      appendExcelSheet(workbook, "指标记录", indicatorExcelRows(), [16, 22, 14, 12, 16, 14, 14, 16, 12, 22, 34]);
+      appendExcelSheet(workbook, "用药记录", medicationExcelRows(), [22, 14, 14, 12, 12, 12, 22, 22, 38]);
+      addRecoverySheet(workbook, backup);
+      XLSX.writeFile(workbook, `SLE记录簿-完整备份-${date}.xlsx`, { compression: true });
+      showToast("完整备份已导出", "Excel 中包含指标、用药和可恢复数据");
+      return;
+    }
+    if (kind === "indicators") {
+      appendExcelSheet(workbook, "指标记录", indicatorExcelRows(), [16, 22, 14, 12, 16, 14, 14, 16, 12, 22, 34]);
+      XLSX.writeFile(workbook, `SLE记录簿-指标记录-${date}.xlsx`, { compression: true });
+      showToast("指标表格已导出", "已生成可直接打开的 Excel 文件");
+      return;
+    }
+    appendExcelSheet(workbook, "用药记录", medicationExcelRows(), [22, 14, 14, 12, 12, 12, 22, 22, 38]);
+    XLSX.writeFile(workbook, `SLE记录簿-用药记录-${date}.xlsx`, { compression: true });
+    showToast("用药表格已导出", "已生成可直接打开的 Excel 文件");
+  }
+  async function readBackupFile(file) {
+    if (file.name.toLowerCase().endsWith(".json")) return JSON.parse(await file.text());
+    if (!excelLibraryReady()) throw new Error("xlsx-unavailable");
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" }), sheet = workbook.Sheets["恢复数据"];
+    if (!sheet) throw new Error("missing-recovery-sheet");
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+    const json = rows.slice(1).filter(row => row[1]).sort((left, right) => Number(left[0]) - Number(right[0])).map(row => String(row[1])).join("");
+    return JSON.parse(json);
   }
   function handleDataAction(action) {
-    if (action === "export-json") { persist(); const backup = clone(state); delete backup.account; backup.session = false; downloadFile(`sle-log-backup-${today()}.json`, JSON.stringify(backup, null, 2), "application/json"); showToast("备份已导出", "已导出健康数据，不包含登录密码"); }
-    if (action === "export-csv") { downloadFile(`sle-log-records-${today()}.csv`, `\ufeff${exportIndicatorsCsv()}`, "text/csv;charset=utf-8"); showToast("表格已导出", "指标记录已生成 CSV 文件"); }
-    if (action === "export-med-csv") { downloadFile(`sle-log-medications-${today()}.csv`, `\ufeff${exportMedicationsCsv()}`, "text/csv;charset=utf-8"); showToast("用药表格已导出", "阶段、给药和观察记录已生成 CSV 文件"); }
-    if (action === "import-json") document.querySelector("#backupFileInput").click();
+    if (action === "export-backup-xlsx") exportExcel("backup");
+    if (action === "export-indicators-xlsx") exportExcel("indicators");
+    if (action === "export-medications-xlsx") exportExcel("medications");
+    if (action === "import-backup") document.querySelector("#backupFileInput").click();
     if (action === "clear-indicators") confirmAction("删除全部指标数据？", "所有指标的历史结果会被清空，自定义指标设置仍会保留。", "删除指标数据", () => { Object.values(indicatorData).forEach(category => Object.values(category.items).forEach(item => item.records = [])); renderIndicator(); persist(); showToast("指标数据已清空", "指标设置和分类仍然保留"); });
     if (action === "clear-medications") confirmAction("删除全部用药数据？", "当前用药、治疗阶段、给药和观察记录都会被清空。", "删除用药数据", () => { state.addedMedicationRecords = []; state.deletedMedicationNames = []; state.medicationColors = {}; state.medicationLogs = {}; state.medicationsCleared = true; clearMedicationUI(); persist(); showToast("用药数据已清空", "可以随时重新添加记录"); if (window.lucide) lucide.createIcons(); });
   }
-  document.querySelector("#exportIndicatorCsv")?.addEventListener("click", () => downloadFile(`${currentItem().short}-${today()}.csv`, `\ufeff${exportIndicatorsCsv()}`, "text/csv;charset=utf-8"));
-  document.querySelector("#backupFileInput").addEventListener("change", async event => { const file = event.target.files[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!imported.profile || !imported.indicators) throw new Error("invalid"); delete imported.account; delete imported.session; if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify({ ...imported, session: false })); else { const saved = await cloud.flush(imported); if (saved.error) throw saved.error; } showToast("备份验证成功", "页面将重新载入恢复后的数据"); setTimeout(() => location.reload(), 700); } catch { showToast("无法恢复备份", "请选择由 SLE记录簿导出的有效 JSON 文件"); } event.target.value = ""; });
+  document.querySelector("#exportIndicatorCsv")?.addEventListener("click", () => exportExcel("indicators"));
+  document.querySelector("#backupFileInput").addEventListener("change", async event => { const file = event.target.files[0]; if (!file) return; try { const imported = await readBackupFile(file); if (!imported.profile || !imported.indicators) throw new Error("invalid"); delete imported.account; delete imported.session; if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify({ ...imported, session: false })); else { const saved = await cloud.flush(imported); if (saved.error) throw saved.error; } showToast("备份验证成功", "页面将重新载入恢复后的数据"); setTimeout(() => location.reload(), 700); } catch { showToast("无法恢复备份", "请选择由 SLE记录簿导出的完整备份 Excel"); } event.target.value = ""; });
 
   document.querySelector("#manualSyncButton").addEventListener("click", async event => { const button = event.currentTarget; if (!navigator.onLine) { setSyncStatus("同步失败", "当前网络不可用，恢复连接后可重新同步", "error"); showToast("暂时无法同步", "请检查网络连接后重试"); return; } button.disabled = true; button.innerHTML = `<i data-lucide="refresh-cw" class="spin"></i>同步中`; setSyncStatus("正在同步数据", isLocalDemo ? "正在检查本地数据" : "正在把最新记录保存到云端", "pending"); if (window.lucide) lucide.createIcons(); if (isLocalDemo) { persist(); await new Promise(resolve => setTimeout(resolve, 300)); } else { const result = await cloud.flush(state); if (result.error) { button.disabled = false; button.innerHTML = `<i data-lucide="refresh-cw"></i>重新同步`; setSyncStatus("同步失败", "本地缓存已保留，请稍后重试", "error"); showToast("同步失败", authMessage(result.error)); if (window.lucide) lucide.createIcons(); return; } } state.lastSync = "刚刚"; button.disabled = false; button.innerHTML = `<i data-lucide="check"></i>同步完成`; setSyncStatus("全部数据已同步", isLocalDemo ? "本地测试数据已保存" : "最近同步于刚刚 · 云端连接正常", "ready"); if (window.lucide) lucide.createIcons(); });
   window.addEventListener("offline", () => { document.querySelector("#syncTitle").textContent = "等待网络连接"; document.querySelector("#syncDescription").textContent = "本地变更已保留，联网后可以手动同步"; });
@@ -663,7 +755,7 @@
     const card = [...document.querySelectorAll(".med-card")].find(item => medicationNameFromCard(item) === name);
     const current = medicationColorChoice(state.medicationColors[name] || card?.dataset.medicationColor);
     const options = (window.SLE_MEDICATION_COLORS || []).map(color => `<label class="med-color-option" title="${safeText(color.name)}"><input type="radio" name="color" value="${color.value}" data-color-name="${safeText(color.name)}" ${color.value === current.value ? "checked" : ""} /><span class="med-color-swatch" style="--med-icon-bg:${color.value}"><i data-lucide="check"></i></span><span class="sr-only">${safeText(color.name)}</span></label>`).join("");
-    return `<fieldset class="med-color-fieldset medication-color-editor"><legend>药品标识颜色</legend><p>颜色会同步用于药品卡片、同期用药和历史时间轴。</p><div class="med-color-grid" role="radiogroup" aria-label="选择药品标识颜色">${options}</div><div class="med-color-preview"><span class="med-color-preview-icon" style="--med-icon-bg:${current.value}"><i data-lucide="pill"></i></span><span>当前选择 <strong data-med-color-name>${safeText(current.name)}</strong></span></div></fieldset>`;
+    return `<fieldset class="med-color-fieldset medication-color-editor"><legend>药品标识颜色</legend><p>颜色会同步用于药品卡片和历年用药时间轴。</p><div class="med-color-grid" role="radiogroup" aria-label="选择药品标识颜色">${options}</div><div class="med-color-preview"><span class="med-color-preview-icon" style="--med-icon-bg:${current.value}"><i data-lucide="pill"></i></span><span>当前选择 <strong data-med-color-name>${safeText(current.name)}</strong></span></div></fieldset>`;
   }
   function paintMedicationColor(name, value) {
     const color = medicationColorChoice(value);
@@ -692,9 +784,12 @@
     const key = medicationStatusKey(status);
     const badge = card.querySelector(".status-badge");
     card.dataset.medicationStatus = key;
-    if (!badge) return;
-    badge.textContent = key === "active" ? "使用中" : status;
-    badge.className = `status-badge medication-status status-${key}`;
+    if (badge) {
+      badge.textContent = key === "active" ? "使用中" : status;
+      badge.className = `status-badge medication-status status-${key}`;
+    }
+    const administrationButton = card.querySelector('[data-medication-primary-action="administration"]') || [...card.querySelectorAll(".card-actions > button")].find(button => button.textContent.trim() === "记录给药");
+    if (administrationButton) administrationButton.hidden = key !== "active";
   }
   function sortMedicationCards() {
     const container = document.querySelector(".medication-cards");
@@ -723,7 +818,14 @@
     document.querySelectorAll(".med-card").forEach(card => {
       const name = medicationNameFromCard(card);
       if (state.medicationColors[name]) paintMedicationColor(name, state.medicationColors[name]);
-      const status = state.medicationLogs[name]?.status || card.querySelector(".status-badge")?.textContent.trim() || "使用中";
+      const hasOwnEndDate = Boolean(String(card.dataset.medicationEndDate || "").trim());
+      const log = state.medicationLogs[name];
+      const latestDoseStage = [...(log?.stages || [])].filter(stage => stage.date && stage.dose !== undefined && stage.dose !== "").sort((left, right) => String(right.date).localeCompare(String(left.date)))[0];
+      if (!hasOwnEndDate && latestDoseStage && (log?.stages || []).length > 1) {
+        const recent = card.querySelector("dl div:nth-child(2) dd");
+        if (recent) recent.textContent = `${String(latestDoseStage.date).replaceAll("-", ".")} · ${latestDoseStage.type || "调整剂量"}`;
+      }
+      const status = hasOwnEndDate ? "已停药" : log?.status || card.querySelector(".status-badge")?.textContent.trim() || "使用中";
       applyMedicationCardStatus(card, status);
     });
     sortMedicationCards();
@@ -737,7 +839,30 @@
     applyMedicationFilter();
     if (window.lucide) lucide.createIcons();
   }
-  function handleMedicationCardButton(button) { const card = button.closest(".med-card"), name = medicationNameFromCard(card); selectedMedication = name; if (button.textContent.includes("调整剂量")) openMedicationTask("adjust", name); else if (button.textContent.includes("记录给药")) openMedicationTask("administration", name); else { const log = state.medicationLogs[name] || {}, pauseButton = document.querySelector('[data-med-task="pause"], [data-med-task="resume"]'); if (pauseButton) { const paused = log.status === "已暂停"; pauseButton.dataset.medTask = paused ? "resume" : "pause"; pauseButton.querySelector("strong").textContent = paused ? "恢复用药" : "暂停用药"; pauseButton.querySelector("small").textContent = paused ? "从指定日期创建新的恢复阶段" : "保留当前阶段和暂停日期"; } document.querySelector("#medicationActionsTitle").textContent = name; document.querySelector("#medicationActionsDescription").textContent = "选择要记录或查看的操作。"; openFeatureModal("medicationActionsModal"); } }
+  function latestOpenMedicationRecord(name) {
+    return state.addedMedicationRecords
+      .filter(record => record.name === name && ["longTerm", "biologic"].includes(record.recordType) && !String(record.endDate || "").trim())
+      .sort((left, right) => String(right.startDate || "").localeCompare(String(left.startDate || "")))[0];
+  }
+  function configureMedicationActions(card, name) {
+    const log = state.medicationLogs[name] || {};
+    const status = String(card.dataset.medicationEndDate || "").trim() ? "已停药" : log.status || "使用中";
+    const isActive = status === "使用中", isPaused = status === "已暂停";
+    const pauseButton = document.querySelector('[data-med-task="pause"], [data-med-task="resume"]');
+    if (pauseButton) {
+      pauseButton.dataset.medTask = isPaused ? "resume" : "pause";
+      pauseButton.querySelector("strong").textContent = isPaused ? "恢复用药" : "暂停用药";
+      pauseButton.querySelector("small").textContent = isPaused ? "从指定日期创建新的恢复阶段" : "保留当前阶段和暂停日期";
+      pauseButton.hidden = !isActive && !isPaused;
+    }
+    const adjustButton = document.querySelector('[data-med-task="adjust"]');
+    const observationButton = document.querySelector('[data-med-task="observation"]');
+    const stopButton = document.querySelector('[data-med-task="stop"]');
+    if (adjustButton) adjustButton.hidden = !isActive;
+    if (observationButton) observationButton.hidden = status === "已停药";
+    if (stopButton) stopButton.hidden = status === "已停药";
+  }
+  function handleMedicationCardButton(button) { const card = button.closest(".med-card"), name = medicationNameFromCard(card); selectedMedication = name; if (button.textContent.includes("调整剂量")) openMedicationTask("adjust", name); else if (button.textContent.includes("记录给药")) openMedicationTask("administration", name); else { configureMedicationActions(card, name); document.querySelector("#medicationActionsTitle").textContent = name; document.querySelector("#medicationActionsDescription").textContent = "选择要记录或查看的操作。"; openFeatureModal("medicationActionsModal"); } }
   function openMedicationTask(action, name) {
     selectedMedication = name; closeFeatureModal(document.querySelector("#medicationActionsModal")); const form = document.querySelector("#medicationTaskForm"), fields = document.querySelector("#medicationTaskFields"), details = document.querySelector("#medicationDetailsContent"); form.hidden = action === "details"; details.hidden = action !== "details"; form.elements.action.value = action; form.elements.medicationName.value = name;
     const title = document.querySelector("#medicationTaskTitle"), description = document.querySelector("#medicationTaskDescription"), kicker = document.querySelector("#medicationTaskKicker"), submitButton = form.querySelector('.button[type="submit"]');
@@ -748,14 +873,14 @@
     if (action === "color") { kicker.textContent = "MEDICATION COLOR"; title.textContent = `修改 ${name} 颜色`; description.textContent = "使用颜色快速区分不同药品。"; fields.innerHTML = medicationColorEditorHTML(name); submitButton.textContent = "保存颜色"; }
     if (action === "details") { kicker.textContent = "MEDICATION DETAILS"; title.textContent = name; description.textContent = "查看所有历史阶段、实际给药和观察记录。"; renderMedicationDetails(name, details); }
     if (action === "delete") { confirmAction(`删除 ${name}？`, "该药品的当前信息、全部历史阶段、实际给药和观察记录都会被删除。此操作无法撤销。", "删除用药", () => { state.addedMedicationRecords = state.addedMedicationRecords.filter(record => record.name !== name); state.deletedMedicationNames = [...new Set([...state.deletedMedicationNames, name])]; delete state.medicationLogs[name]; delete state.medicationColors[name]; removeMedicationFromUI(name); persist(); showToast(`${name} 已删除`, "相关用药记录已从卡片和时间轴中移除"); }); return; }
-    if (action === "pause" || action === "resume" || action === "stop") { const label = action === "pause" ? "暂停用药" : action === "resume" ? "恢复用药" : "停止用药"; confirmAction(`${label}？`, `系统会创建 ${name} 的“${label}”阶段并保留全部历史数据。`, label, () => { const log = state.medicationLogs[name] ||= { stages: [], administrations: [], observations: [] }; log.status = action === "pause" ? "已暂停" : action === "resume" ? "使用中" : "已停药"; log.stages.push({ date: today(), type: label, reason: "" }); updateMedicationCardStatus(name, log.status); persist(); showToast(`${name} ${label}`, "历史阶段已完整保留"); }); return; }
+    if (action === "pause" || action === "resume" || action === "stop") { const label = action === "pause" ? "暂停用药" : action === "resume" ? "恢复用药" : "停止用药"; confirmAction(`${label}？`, `系统会创建 ${name} 的“${label}”阶段并保留全部历史数据。`, label, () => { const log = state.medicationLogs[name] ||= { stages: [], administrations: [], observations: [] }; const actionDate = today(); log.status = action === "pause" ? "已暂停" : action === "resume" ? "使用中" : "已停药"; log.stages.push({ date: actionDate, type: label, reason: "" }); if (action === "stop") { const record = latestOpenMedicationRecord(name); if (record) record.endDate = actionDate; document.querySelectorAll(".med-card").forEach(card => { if (medicationNameFromCard(card) !== name || String(card.dataset.medicationEndDate || "").trim()) return; card.dataset.medicationEndDate = actionDate; const period = card.querySelector("dl div:first-child dd"); if (period) period.textContent = `${String(card.dataset.medicationStartDate || "").replaceAll("-", ".")} 至 ${actionDate.replaceAll("-", ".")}`; }); } updateMedicationCardStatus(name, log.status); persist(); showToast(`${name} ${label}`, "历史阶段已完整保留"); }); return; }
     openFeatureModal("medicationTaskModal");
   }
-  function updateMedicationCardStatus(name, status) { document.querySelectorAll(".med-card").forEach(card => { if (medicationNameFromCard(card) === name) applyMedicationCardStatus(card, status); }); sortMedicationCards(); applyMedicationFilter(); }
+  function updateMedicationCardStatus(name, status) { document.querySelectorAll(".med-card").forEach(card => { if (medicationNameFromCard(card) !== name) return; const cardStatus = String(card.dataset.medicationEndDate || "").trim() ? "已停药" : status; applyMedicationCardStatus(card, cardStatus); }); sortMedicationCards(); applyMedicationFilter(); }
   function renderMedicationDetails(name, container) {
-    const log = state.medicationLogs[name] || { stages: [], administrations: [], observations: [] }, card = [...document.querySelectorAll(".med-card")].find(item => medicationNameFromCard(item) === name), brand = card?.querySelector("p")?.textContent.trim() || "未填写", currentDose = card?.querySelector(".dose")?.textContent.replace(/\s+/g, " ").trim() || "未填写", allDates = [...(log.stages || []), ...(log.administrations || []), ...(log.observations || [])].map(item => item.date).filter(Boolean).sort(), firstDate = allDates[0] || card?.querySelector("dd")?.textContent.split(" ")[0] || "未记录", currentStage = (log.stages || []).at(-1) || {};
+    const log = state.medicationLogs[name] || { stages: [], administrations: [], observations: [] }, card = [...document.querySelectorAll(".med-card")].find(item => medicationNameFromCard(item) === name), brand = card?.querySelector("p")?.textContent.trim() || "未填写", currentDose = card?.querySelector(".dose")?.textContent.replace(/\s+/g, " ").trim() || "未填写", allDates = [...(log.stages || []), ...(log.administrations || []), ...(log.observations || [])].map(item => item.date).filter(Boolean).sort(), firstDate = allDates[0] || card?.querySelector("dd")?.textContent.split(" ")[0] || "未记录", dosageStages = (log.stages || []).filter(item => item.dose !== undefined && item.dose !== ""), currentStage = dosageStages.at(-1) || (log.stages || []).at(-1) || {};
     const block = (title, items, renderer) => `<section class="detail-log-section"><div><h3>${title}</h3><span>${items.length}</span></div>${items.length ? `<div class="detail-log-list">${items.map(renderer).join("")}</div>` : `<div class="detail-empty">暂无记录</div>`}</section>`;
-    const stageValues = (log.stages || []).map(item => Number(item.dose)).filter(Number.isFinite), stageMax = Math.max(...stageValues, 1), stepChart = stageValues.length ? `<section class="dose-step-section"><div><h3>剂量变化</h3><small>阶梯图仅展示已记录阶段</small></div><div class="dose-step-chart">${(log.stages || []).map(item => `<span style="--step:${Math.max(18, Number(item.dose || 0) / stageMax * 100)}%"><b>${safeText(item.dose || "-")} ${safeText(item.unit || "")}</b><i></i><small>${safeText(item.date || "")}</small></span>`).join("")}</div></section>` : "";
+    const stageValues = dosageStages.map(item => Number(item.dose)).filter(Number.isFinite), stageMax = Math.max(...stageValues, 1), stepChart = stageValues.length ? `<section class="dose-step-section"><div><h3>剂量变化</h3><small>阶梯图仅展示已记录阶段</small></div><div class="dose-step-chart">${dosageStages.map(item => `<span style="--step:${Math.max(18, Number(item.dose || 0) / stageMax * 100)}%"><b>${safeText(item.dose || "-")} ${safeText(item.unit || "")}</b><i></i><small>${safeText(item.date || "")}</small></span>`).join("")}</div></section>` : "";
     container.innerHTML = `<div class="detail-status"><span>当前状态</span><strong>${safeText(log.status || "使用中")}</strong></div><div class="medication-detail-summary"><div><span>当前品牌</span><strong>${safeText(brand)}</strong></div><div><span>当前剂量与频率</span><strong>${safeText(currentDose)}</strong></div><div><span>给药途径</span><strong>${safeText(currentStage.route || "未记录")}</strong></div><div><span>首次使用日期</span><strong>${safeText(firstDate)}</strong></div></div>${stepChart}${block("历史阶段", log.stages || [], item => `<article><strong>${safeText(item.type || "阶段记录")}</strong><span>${safeText(item.date || "")}</span><p>${safeText([item.dose && `${item.dose} ${item.unit || ""}`, item.frequency, item.reason].filter(Boolean).join(" · "))}</p></article>`)}${block("实际给药与不良反应", log.administrations || [], item => `<article><strong>${safeText(`${item.dose || ""} ${item.unit || ""}`)}</strong><span>${safeText(item.date || "")}</span><p>${safeText([item.status, item.hospital, item.adverse].filter(Boolean).join(" · "))}</p></article>`)}${block("观察记录", log.observations || [], item => `<article><strong>${safeText(item.type || "个人观察")}</strong><span>${safeText(item.date || "")}</span><p>${safeText(item.content || "")}</p></article>`)}`;
   }
   document.querySelector("#medicationTaskForm").addEventListener("submit", event => {
@@ -769,7 +894,7 @@
       return;
     }
     const log = state.medicationLogs[data.medicationName] ||= { status: "使用中", stages: [], administrations: [], observations: [] };
-    if (data.action === "adjust") { log.stages.push(data); log.status = "使用中"; document.querySelectorAll(".med-card").forEach(card => { if (medicationNameFromCard(card) === data.medicationName) { const dose = card.querySelector(".dose"); if (dose) dose.innerHTML = `<strong>${safeText(data.dose)}</strong><span>${safeText(data.unit)} · ${safeText(data.frequency)}</span>`; } }); updateMedicationCardStatus(data.medicationName, log.status); }
+    if (data.action === "adjust") { log.stages.push(data); log.status = "使用中"; const record = latestOpenMedicationRecord(data.medicationName); if (record) Object.assign(record, { dose: data.dose, unit: data.unit, frequency: data.frequency, route: data.route, brand: data.brand || record.brand }); document.querySelectorAll(".med-card").forEach(card => { if (medicationNameFromCard(card) === data.medicationName && !String(card.dataset.medicationEndDate || "").trim()) { const dose = card.querySelector(".dose"); if (dose) dose.innerHTML = `<strong>${safeText(data.dose)}</strong><span>${safeText(data.unit)} · ${safeText(data.frequency)}</span>`; const recent = card.querySelector("dl div:nth-child(2) dd"); if (recent) recent.textContent = `${String(data.date || "").replaceAll("-", ".")} · ${safeText(data.type || "调整剂量")}`; } }); updateMedicationCardStatus(data.medicationName, log.status); }
     if (data.action === "administration") log.administrations.push(data);
     if (data.action === "observation") log.observations.push(data);
     persist();

@@ -34,6 +34,12 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const formatDate = value => { const d = new Date(`${value}T00:00:00`); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`; };
 const formatLongDate = value => { const d = new Date(`${value}T00:00:00`); return `${d.getFullYear()} 年 ${d.getMonth()+1} 月 ${d.getDate()} 日`; };
 const formatNumber = value => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
+const urineVolumeOf = record => {
+  const raw = record?.[8]?.volume;
+  if(raw===undefined||raw===null||String(raw).trim()==="")return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+};
 
 function currentItem(){ return indicatorData[currentCategory].items[currentIndicator]; }
 
@@ -72,6 +78,10 @@ function applyQuickEntryDefaults(){
   form.elements.low.value=remembered.low??"";
   form.elements.high.value=remembered.high??"";
   form.elements.hospital.value=latestEnteredHospital();
+  const urineFields=$("#quickUrineVolumeFields"),isProtein24=currentCategory==="kidney"&&currentIndicator==="protein24";
+  urineFields.hidden=!isProtein24;
+  form.elements.urineVolume.disabled=!isProtein24;
+  form.elements.urineVolume.value="";
 }
 function applyCheckEntryDefaults(){
   const form=$("#checkForm");
@@ -95,6 +105,101 @@ function renderPicker(){
   $$(".indicator-pill", picker).forEach(button => button.addEventListener("click", () => { currentIndicator = button.dataset.indicator; renderIndicator(); }));
 }
 
+const indicatorDescriptions={
+  wbc:"反映免疫防御与感染风险",hb:"反映携氧能力与贫血程度",platelets:"反映凝血和骨髓造血状态",
+  c3:"补体消耗可用于辅助观察疾病活动",c4:"与 C3 结合观察补体消耗变化",dsdna:"辅助观察 SLE 活动度的特异性抗体",esr:"反映体内炎症反应的非特异性指标",crp:"反映急性炎症与感染变化",
+  protein24:"观察 24 小时内尿蛋白总量",upcr:"用单次尿样评估尿蛋白水平",egfr:"估算肾小球滤过功能",creatinine:"反映肾脏滤过与代谢废物清除能力"
+};
+const expandedIndicatorHistoryCards=new Set();
+const indicatorHistoryPages=new Map();
+
+function indicatorRangeLabel(){return {"6m":"近 6 个月","1y":"近 1 年","3y":"3 年","all":"全部"}[currentRange]||"近 1 年";}
+
+function miniTrendChart(item,records){
+  const W=720,H=150,pad={l:18,r:18,t:18,b:28};
+  if(!records.length)return `<div class="indicator-mini-empty"><i data-lucide="chart-no-axes-column-increasing"></i><span>暂无趋势数据</span></div>`;
+  const latest=records.at(-1),low=Number(latest[5]??item.low),high=Number(latest[6]??item.high),values=[...records.map(record=>Number(record[1])),low,high].filter(Number.isFinite);
+  let min=Math.min(...values),max=Math.max(...values);const reserve=Math.max((max-min)*.18,Math.abs(max||1)*.06,.01);min-=reserve;max+=reserve;if(max<=min)max=min+1;
+  const start=new Date(`${records[0][0]}T00:00:00`).getTime(),end=new Date(`${records.at(-1)[0]}T00:00:00`).getTime(),span=Math.max(1,end-start),plotW=W-pad.l-pad.r,plotH=H-pad.t-pad.b;
+  const x=date=>pad.l+(new Date(`${date}T00:00:00`).getTime()-start)/span*plotW,y=value=>pad.t+(max-Number(value))/(max-min)*plotH;
+  const rangeTop=Math.min(y(low),y(high)),rangeBottom=Math.max(y(low),y(high)),points=records.map(record=>[x(record[0]),y(record[1]),record]);
+  const path=points.length===1?"":`<path class="indicator-mini-path" d="${points.map((point,index)=>`${index?"L":"M"}${point[0].toFixed(2)},${point[1].toFixed(2)}`).join(" ")}"/>`;
+  const dots=points.map(point=>{
+    const date=point[2][0],value=formatNumber(point[2][1]),unit=point[2][4]||item.unit,label=`${formatLongDate(date)}：${value} ${unit}`;
+    return `<g class="indicator-mini-point" role="button" tabindex="0" data-point-series="${escapeHTML(item.name)}" data-point-date="${escapeHTML(date)}" data-point-value="${escapeHTML(value)}" data-point-unit="${escapeHTML(unit)}" aria-label="${escapeHTML(label)}"><circle class="indicator-mini-hit" cx="${point[0].toFixed(2)}" cy="${point[1].toFixed(2)}" r="22"/><circle class="indicator-mini-ring" cx="${point[0].toFixed(2)}" cy="${point[1].toFixed(2)}" r="9.5"/><circle class="indicator-mini-dot" cx="${point[0].toFixed(2)}" cy="${point[1].toFixed(2)}" r="5"/></g>`;
+  }).join("");
+  const volumeRecords=records.filter(record=>urineVolumeOf(record)!==null),volumeMax=volumeRecords.length?Math.max(...volumeRecords.map(record=>urineVolumeOf(record)),1)*1.15:1,yVolume=value=>pad.t+(1-Number(value)/volumeMax)*plotH;
+  const volumePoints=volumeRecords.map(record=>[x(record[0]),yVolume(urineVolumeOf(record)),record]);
+  const volumePath=volumePoints.length>1?`<path class="indicator-mini-volume-path" d="${volumePoints.map((point,index)=>`${index?"L":"M"}${point[0].toFixed(2)},${point[1].toFixed(2)}`).join(" ")}"/>`:"";
+  const volumeDots=volumePoints.map(point=>{const date=point[2][0],value=formatNumber(urineVolumeOf(point[2])),label=`${formatLongDate(date)}：尿量 ${value} 毫升`;return `<g class="indicator-mini-point indicator-mini-volume-point" role="button" tabindex="0" data-point-series="尿量" data-point-date="${escapeHTML(date)}" data-point-value="${escapeHTML(value)}" data-point-unit="毫升" aria-label="${escapeHTML(label)}"><circle class="indicator-mini-hit" cx="${point[0].toFixed(2)}" cy="${point[1].toFixed(2)}" r="22"/><circle class="indicator-mini-ring" cx="${point[0].toFixed(2)}" cy="${point[1].toFixed(2)}" r="9.5"/><circle class="indicator-mini-dot indicator-mini-volume-dot" cx="${point[0].toFixed(2)}" cy="${point[1].toFixed(2)}" r="4.5"/></g>`;}).join("");
+  const startLabel=formatDate(records[0][0]).slice(0,7),endLabel=formatDate(records.at(-1)[0]).slice(0,7);
+  const legend=volumePoints.length?`<div class="indicator-dual-legend"><span><i></i>尿蛋白（${escapeHTML(item.unit)}）</span><span><i></i>尿量（毫升）</span></div>`:"";
+  return `<svg class="indicator-mini-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHTML(item.name)}${indicatorRangeLabel()}趋势图"><rect class="indicator-mini-range" x="${pad.l}" y="${rangeTop.toFixed(2)}" width="${plotW}" height="${Math.max(3,rangeBottom-rangeTop).toFixed(2)}" rx="5"/><line class="indicator-mini-limit" x1="${pad.l}" y1="${y(high).toFixed(2)}" x2="${W-pad.r}" y2="${y(high).toFixed(2)}"/><line class="indicator-mini-limit" x1="${pad.l}" y1="${y(low).toFixed(2)}" x2="${W-pad.r}" y2="${y(low).toFixed(2)}"/>${path}${volumePath}${dots}${volumeDots}<text class="indicator-mini-date" x="${pad.l}" y="${H-6}">${startLabel}</text>${endLabel!==startLabel?`<text class="indicator-mini-date" x="${W-pad.r}" y="${H-6}" text-anchor="end">${endLabel}</text>`:""}</svg>${legend}<div class="indicator-mini-tooltip" role="status" aria-live="polite" aria-hidden="true"><time></time><strong></strong><small></small></div>`;
+}
+
+function hideIndicatorPointTooltip(chart,force=false){
+  if(!chart)return;
+  const tooltip=$(".indicator-mini-tooltip",chart);
+  if(!tooltip||(!force&&tooltip.classList.contains("is-pinned")))return;
+  tooltip.classList.remove("is-visible","is-pinned");
+  tooltip.setAttribute("aria-hidden","true");
+  $$(".indicator-mini-point.is-active",chart).forEach(point=>point.classList.remove("is-active"));
+}
+
+function showIndicatorPointTooltip(point,pinned=false){
+  const chart=point?.closest(".indicator-card-chart"),tooltip=chart&&$(".indicator-mini-tooltip",chart),dot=point&&$(".indicator-mini-dot",point);
+  if(!chart||!tooltip||!dot)return;
+  $$(".indicator-mini-point.is-active",chart).forEach(item=>item.classList.remove("is-active"));
+  point.classList.add("is-active");
+  $("time",tooltip).textContent=formatLongDate(point.dataset.pointDate);
+  $("strong",tooltip).textContent=`${point.dataset.pointValue} ${point.dataset.pointUnit}`;
+  const series=$("small",tooltip);if(series)series.textContent=point.dataset.pointSeries||"检查结果";
+  const chartRect=chart.getBoundingClientRect(),dotRect=dot.getBoundingClientRect(),rawX=dotRect.left+dotRect.width/2-chartRect.left;
+  tooltip.style.left=`${rawX}px`;
+  tooltip.style.top=`${Math.max(8,dotRect.top-chartRect.top-8)}px`;
+  tooltip.classList.add("is-visible");
+  tooltip.classList.toggle("is-pinned",pinned);
+  tooltip.setAttribute("aria-hidden","false");
+  const inset=8,half=tooltip.offsetWidth/2;
+  tooltip.style.left=`${Math.min(chart.clientWidth-half-inset,Math.max(half+inset,rawX))}px`;
+}
+
+function indicatorMedicationContext(records){
+  const chartStart=records.length?new Date(`${records[0][0]}T00:00:00`).getTime():-Infinity,chartEnd=records.length?new Date(`${records.at(-1)[0]}T23:59:59`).getTime():Infinity;
+  const cards=$$(".med-card").filter(card=>{
+    const period=$("dl dd",card)?.textContent.trim()||"",dates=period.match(/\d{4}\.\d{2}\.\d{2}/g)||[];
+    if(!dates.length)return true;
+    const start=new Date(`${dates[0].replaceAll(".","-")}T00:00:00`).getTime(),end=dates[1]?new Date(`${dates[1].replaceAll(".","-")}T23:59:59`).getTime():Infinity;
+    return start<=chartEnd&&end>=chartStart;
+  });
+  if(!cards.length)return `<div class="indicator-medication-empty"><i data-lucide="pill"></i><span><strong>该时间段暂无用药</strong><small>添加用药记录后，将用于时间对照。</small></span></div>`;
+  return `<div class="indicator-medication-grid">${cards.map(card=>{const name=$("h3",card)?.textContent.trim()||"未命名药品",dose=$(".dose",card)?.textContent.replace(/\s+/g," ").trim()||"未记录剂量",status=$(".medication-status",card)?.textContent.trim()||$(".status-badge",card)?.textContent.trim()||"已记录",period=$("dl dd",card)?.textContent.trim()||"已纳入当前时间对照",color=card.dataset.medicationColor||"#E4ECF5";return `<div class="indicator-medication-item" style="--med-color:${escapeHTML(color)}"><i></i><span><strong>${escapeHTML(name)}</strong><small>${escapeHTML(dose)} · ${escapeHTML(period)}</small></span><em>${escapeHTML(status)}</em></div>`;}).join("")}</div>`;
+}
+
+function indicatorRecentRecords(key,item){
+  const allRecords=[...item.records].reverse(),pageSize=5,pageToken=`${currentCategory}:${key}`,totalPages=Math.max(1,Math.ceil(allRecords.length/pageSize)),page=Math.min(totalPages,Math.max(1,indicatorHistoryPages.get(pageToken)||1)),records=allRecords.slice((page-1)*pageSize,page*pageSize);
+  indicatorHistoryPages.set(pageToken,page);
+  if(!records.length)return "";
+  const pagination=totalPages>1?`<nav class="indicator-history-pagination" aria-label="${escapeHTML(item.name)}历史记录翻页"><button type="button" data-history-page="${page-1}" data-history-page-key="${key}" ${page===1?"disabled":""} aria-label="上一页"><i data-lucide="chevron-left"></i><span>上一页</span></button><small>${page} / ${totalPages}</small><button type="button" data-history-page="${page+1}" data-history-page-key="${key}" ${page===totalPages?"disabled":""} aria-label="下一页"><span>下一页</span><i data-lucide="chevron-right"></i></button></nav>`:"";
+  return `<div class="indicator-recent-records"><h4>历史记录</h4>${records.map(record=>{const volume=key==="protein24"?urineVolumeOf(record):null;return `<div class="indicator-record-row"><time>${formatDate(record[0])}</time><strong>${formatNumber(record[1])} <small>${escapeHTML(record[4]||item.unit)}</small>${volume!==null?`<em>尿量 ${formatNumber(volume)} 毫升</em>`:""}</strong><span>${escapeHTML(record[2]||"未填写医院")}</span><span class="indicator-record-actions"><button type="button" class="icon-button small" data-indicator-record="${key}" data-history-action="edit" data-record-date="${record[0]}" aria-label="编辑 ${formatDate(record[0])} 记录"><i data-lucide="pencil"></i></button><button type="button" class="icon-button small" data-indicator-record="${key}" data-history-action="delete" data-record-date="${record[0]}" aria-label="删除 ${formatDate(record[0])} 记录"><i data-lucide="trash-2"></i></button></span></div>`;}).join("")}${pagination}</div>`;
+}
+
+function renderIndicatorList(){
+  const list=$("#indicatorTrendList");if(!list)return;
+  const entries=Object.entries(indicatorData[currentCategory].items).filter(([,item])=>!item.isHidden);
+  list.innerHTML=entries.length?entries.map(([key,item])=>{
+    const latest=item.records.at(-1),records=filteredRecords(item.records),low=latest?.[5]??item.low,high=latest?.[6]??item.high,status=latest?getStatus(latest[1],{low,high}):["暂无数据","neutral","empty"],statusText=status[0]==="范围内"?"正常":status[0],expanded=expandedIndicatorHistoryCards.has(`${currentCategory}:${key}`),panelId=`indicator-history-${currentCategory}-${key}`,latestVolume=key==="protein24"?urineVolumeOf(latest):null;
+    return `<article class="indicator-trend-card status-${status[1]}" data-indicator-card="${key}">
+      <div class="indicator-card-summary"><div class="indicator-card-copy"><div class="indicator-card-title"><h2>${escapeHTML(item.name)}</h2><span class="status-badge ${status[1]}">${statusText}</span></div><p>${escapeHTML(indicatorDescriptions[key]||item.notes||`连续观察${item.name}的长期变化`)}</p><small>参考 ${formatNumber(low)}-${formatNumber(high)} ${escapeHTML(latest?.[4]||item.unit)}</small></div><div class="indicator-card-value"><strong>${latest?formatNumber(latest[1]):"--"}</strong><span>${escapeHTML(latest?.[4]||item.unit)}</span>${latestVolume!==null?`<small>尿量 ${formatNumber(latestVolume)} 毫升</small>`:""}</div></div>
+      <div class="indicator-card-chart">${miniTrendChart(item,records)}</div>
+      <div class="indicator-card-actions"><button type="button" class="indicator-add-data" data-indicator-add="${key}"><i data-lucide="plus"></i>添加数据</button><button type="button" class="indicator-expand" data-indicator-history="${key}" aria-expanded="${expanded}" aria-controls="${panelId}"><span>${expanded?"收起历史记录":"查看历史记录"}</span><i data-lucide="chevron-down"></i></button></div>
+      <div class="indicator-card-details indicator-history-details" id="${panelId}" ${expanded?"":"hidden"}>${indicatorRecentRecords(key,item)}</div>
+    </article>`;
+  }).join(""):`<div class="indicator-list-empty"><i data-lucide="chart-no-axes-column-increasing"></i><strong>当前分类没有显示中的指标</strong><small>可以添加新指标，或从指标设置中恢复已隐藏项。</small></div>`;
+  if(window.lucide)lucide.createIcons();
+}
+window.renderIndicatorList=renderIndicatorList;
+
 function getStatus(value,item){ if(value<item.low) return ["偏低","warning","low"]; if(value>item.high) return ["偏高","error","low"]; return ["范围内","success","normal"]; }
 
 function renderReferenceRail(value,low,high,itemMax){
@@ -114,6 +219,7 @@ function renderReferenceRail(value,low,high,itemMax){
 
 function renderIndicator(){
   renderPicker();
+  renderIndicatorList();
   const item=currentItem();if(!item)return;
   const latest=item.records.at(-1), previous=item.records.at(-2);
   $("#indicatorFullName").textContent=item.name;$("#historyCount").textContent=item.records.length;$("#rangeLabel").textContent=`参考范围 ${formatNumber(item.low)}-${formatNumber(item.high)}`;$("#chartUnit").textContent=item.unit;$("#trendChart").setAttribute("aria-label",`${item.name}长期趋势图`);$("#quickModalTitle").textContent=`添加 ${item.short} 数据`;const units=new Set(item.records.map(record=>record[4]||item.unit));$("#unitMismatchWarning").hidden=units.size<2;
@@ -128,11 +234,11 @@ function renderIndicator(){
 
 function filteredRecords(records){
   if(!records.length)return [];
-  if(currentRange==="all") return records; const months={"6m":6,"1y":12,"2y":24}[currentRange]; const latest=new Date(`${records.at(-1)[0]}T00:00:00`); const cutoff=new Date(latest); cutoff.setMonth(cutoff.getMonth()-months); const result=records.filter(r=>new Date(`${r[0]}T00:00:00`)>=cutoff); return result.length?result:records.slice(-1);
+  if(currentRange==="all") return records; const months={"6m":6,"1y":12,"2y":24,"3y":36}[currentRange]||12; const latest=new Date(`${records.at(-1)[0]}T00:00:00`); const cutoff=new Date(latest); cutoff.setMonth(cutoff.getMonth()-months); const result=records.filter(r=>new Date(`${r[0]}T00:00:00`)>=cutoff); return result.length?result:records.slice(-1);
 }
 
 function renderChart(){
-  const item=currentItem(), records=filteredRecords(item.records), svg=$("#trendChart"), mobile=window.matchMedia("(max-width: 767px)").matches,wrapWidth=$('.chart-wrap')?.clientWidth||0; const W=mobile?Math.max(280,wrapWidth):960,H=mobile?230:300,pad=mobile?{l:38,r:10,t:14,b:34}:{l:44,r:18,t:18,b:38};let plotW=W-pad.l-pad.r;const plotH=H-pad.t-pad.b;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  const item=currentItem(), records=filteredRecords(item.records), svg=$("#trendChart"), mobile=window.matchMedia("(max-width: 767px)").matches,wrapWidth=$('.chart-wrap')?.clientWidth||0,isProtein24=currentCategory==="kidney"&&currentIndicator==="protein24",volumeRecords=isProtein24?records.filter(record=>urineVolumeOf(record)!==null):[]; const W=mobile?Math.max(280,wrapWidth):960,H=mobile?230:300,pad=mobile?{l:38,r:volumeRecords.length?46:10,t:14,b:34}:{l:44,r:volumeRecords.length?60:18,t:18,b:38};let plotW=W-pad.l-pad.r;const plotH=H-pad.t-pad.b;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("preserveAspectRatio","xMidYMid meet");
   if(!records.length){const emptyTop=H*.26,emptyHeight=H*.4;svg.innerHTML=`<rect class="range-area" x="${pad.l}" y="${emptyTop}" width="${plotW}" height="${emptyHeight}" rx="8"/><text class="axis-label" x="${pad.l+plotW/2}" y="${emptyTop+emptyHeight/2-7}" text-anchor="middle">暂无趋势数据</text><text class="axis-label" x="${pad.l+plotW/2}" y="${emptyTop+emptyHeight/2+14}" text-anchor="middle">添加检查结果后自动生成曲线</text>`;return;}
   const lowDate=new Date(`${records[0][0]}T00:00:00`).getTime(), highDate=new Date(`${records.at(-1)[0]}T00:00:00`).getTime(), dateSpan=Math.max(1,highDate-lowDate);
   const yMax=Math.max(item.max,...records.map(r=>r[1]))*1.08;if(mobile){pad.l=Math.min(76,Math.max(38,16+formatNumber(yMax).length*6));plotW=W-pad.l-pad.r;}const x=v=>pad.l+(new Date(`${v}T00:00:00`).getTime()-lowDate)/dateSpan*plotW, y=v=>pad.t+(1-v/yMax)*plotH;
@@ -140,14 +246,21 @@ function renderChart(){
   const rangeTop=y(item.high),rangeBottom=y(item.low); html+=`<rect class="range-area" x="${pad.l}" y="${rangeTop}" width="${plotW}" height="${Math.max(2,rangeBottom-rangeTop)}" rx="3"/>`;
   const pts=records.map(r=>[x(r[0]),y(r[1]),r]); html+=`<path class="trend-path" d="${pts.map((p,i)=>`${i?"L":"M"}${p[0]},${p[1]}`).join(" ")}"/>`;
   records.forEach((r,i)=>{const p=pts[i];html+=`<circle class="trend-dot" tabindex="0" data-index="${i}" cx="${p[0]}" cy="${p[1]}" r="3.4"/>`;});
+  if(volumeRecords.length){
+    const volumeMax=Math.max(...volumeRecords.map(record=>urineVolumeOf(record)),1)*1.12,yVolume=value=>pad.t+(1-Number(value)/volumeMax)*plotH,volumePts=volumeRecords.map(record=>[x(record[0]),yVolume(urineVolumeOf(record)),record]);
+    if(volumePts.length>1)html+=`<path class="trend-volume-path" d="${volumePts.map((point,index)=>`${index?"L":"M"}${point[0]},${point[1]}`).join(" ")}"/>`;
+    volumePts.forEach((point,index)=>{html+=`<circle class="trend-volume-dot" tabindex="0" data-volume-index="${index}" cx="${point[0]}" cy="${point[1]}" r="3.2"/>`;});
+    html+=`<text class="axis-label volume-axis" x="${W-pad.r+8}" y="${pad.t+4}">${formatNumber(volumeMax)}</text><text class="axis-label volume-axis" x="${W-pad.r+8}" y="${pad.t+plotH}">0</text><text class="axis-label volume-axis" x="${W-pad.r+8}" y="${pad.t+plotH/2}" transform="rotate(90 ${W-pad.r+8} ${pad.t+plotH/2})" text-anchor="middle">尿量（毫升）</text>`;
+  }
   const labels=[records[0],records[Math.floor((records.length-1)/2)],records.at(-1)]; const unique=[...new Map(labels.map(r=>[r[0],r])).values()]; unique.forEach(r=>html+=`<text class="axis-label" x="${x(r[0])}" y="${H-10}" text-anchor="middle">${formatDate(r[0]).slice(0,7)}</text>`); svg.innerHTML=html;
   $$(".trend-dot",svg).forEach(dot=>{ const show=()=>showTooltip(dot,records[Number(dot.dataset.index)]); dot.addEventListener("mouseenter",show); dot.addEventListener("focus",show); dot.addEventListener("mouseleave",hideTooltip); dot.addEventListener("blur",hideTooltip); });
+  $$(".trend-volume-dot",svg).forEach(dot=>{const show=()=>showTooltip(dot,volumeRecords[Number(dot.dataset.volumeIndex)],"volume");dot.addEventListener("mouseenter",show);dot.addEventListener("focus",show);dot.addEventListener("mouseleave",hideTooltip);dot.addEventListener("blur",hideTooltip);});
 }
 
-function showTooltip(dot,r){ const item=currentItem(),tip=$("#chartTooltip"),wrap=$(".chart-wrap"),svg=$("#trendChart"),unit=r[4]||item.unit,low=r[5]??item.low,high=r[6]??item.high; const box=svg.getBoundingClientRect(),wrapBox=wrap.getBoundingClientRect(),viewBox=svg.viewBox.baseVal,cx=Number(dot.getAttribute("cx"))/viewBox.width*box.width+(box.left-wrapBox.left),cy=Number(dot.getAttribute("cy"))/viewBox.height*box.height+(box.top-wrapBox.top); tip.innerHTML=`<span>${formatLongDate(r[0])}</span><strong>${formatNumber(r[1])} ${unit}</strong><span>参考范围 ${formatNumber(low)}-${formatNumber(high)} · ${r[2]}</span>`;tip.style.left=`${cx}px`;tip.style.top=`${cy}px`;tip.classList.add("is-visible"); }
+function showTooltip(dot,r,series="indicator"){ const item=currentItem(),tip=$("#chartTooltip"),wrap=$(".chart-wrap"),svg=$("#trendChart"),unit=r[4]||item.unit,low=r[5]??item.low,high=r[6]??item.high; const box=svg.getBoundingClientRect(),wrapBox=wrap.getBoundingClientRect(),viewBox=svg.viewBox.baseVal,cx=Number(dot.getAttribute("cx"))/viewBox.width*box.width+(box.left-wrapBox.left),cy=Number(dot.getAttribute("cy"))/viewBox.height*box.height+(box.top-wrapBox.top); tip.innerHTML=series==="volume"?`<span>${formatLongDate(r[0])}</span><strong>${formatNumber(urineVolumeOf(r))} 毫升</strong><span>24 小时尿量 · ${r[2]}</span>`:`<span>${formatLongDate(r[0])}</span><strong>${formatNumber(r[1])} ${unit}</strong><span>参考范围 ${formatNumber(low)}-${formatNumber(high)} · ${r[2]}</span>`;tip.style.left=`${cx}px`;tip.style.top=`${cy}px`;tip.classList.add("is-visible"); }
 function hideTooltip(){ $("#chartTooltip").classList.remove("is-visible"); }
 
-function renderHistory(){ const item=currentItem();if(!item.records.length){$("#historyBody").innerHTML=`<tr class="empty-table-row"><td colspan="6"><div class="inline-empty"><span><i data-lucide="clipboard-plus"></i></span><strong>暂无检查记录</strong><small>录入第一条结果后，将在这里按时间展示。</small></div></td></tr>`;return;}$("#historyBody").innerHTML=[...item.records].reverse().map(r=>{const low=r[5]??item.low,high=r[6]??item.high,unit=r[4]||item.unit,status=r[1]<low?["偏低","low"]:r[1]>high?["偏高","low"]:["范围内","normal"];return `<tr><td data-label="检查日期">${formatDate(r[0])}</td><td data-label="检查结果" class="numeric">${formatNumber(r[1])} <small>${unit}</small><span class="record-status ${status[1]}">${status[0]}</span></td><td data-label="参考范围">${formatNumber(low)}-${formatNumber(high)} ${unit}</td><td data-label="医院">${r[2]}</td><td data-label="备注">${r[3]||"未填写"}</td><td><div class="row-actions"><button class="icon-button small" data-history-action="edit" data-record-date="${r[0]}" aria-label="编辑记录"><i data-lucide="pencil"></i></button><button class="icon-button small" data-history-action="delete" data-record-date="${r[0]}" aria-label="删除记录"><i data-lucide="trash-2"></i></button></div></td></tr>`}).join(""); }
+function renderHistory(){ const item=currentItem();if(!item.records.length){$("#historyBody").innerHTML=`<tr class="empty-table-row"><td colspan="6"><div class="inline-empty"><span><i data-lucide="clipboard-plus"></i></span><strong>暂无检查记录</strong><small>录入第一条结果后，将在这里按时间展示。</small></div></td></tr>`;return;}$("#historyBody").innerHTML=[...item.records].reverse().map(r=>{const low=r[5]??item.low,high=r[6]??item.high,unit=r[4]||item.unit,status=r[1]<low?["偏低","low"]:r[1]>high?["偏高","low"]:["范围内","normal"],volume=currentIndicator==="protein24"?urineVolumeOf(r):null;return `<tr><td data-label="检查日期">${formatDate(r[0])}</td><td data-label="检查结果" class="numeric">${formatNumber(r[1])} <small>${unit}</small>${volume!==null?`<span class="record-companion">尿量 ${formatNumber(volume)} 毫升</span>`:""}<span class="record-status ${status[1]}">${status[0]}</span></td><td data-label="参考范围">${formatNumber(low)}-${formatNumber(high)} ${unit}</td><td data-label="医院">${r[2]}</td><td data-label="备注">${r[3]||"未填写"}</td><td><div class="row-actions"><button class="icon-button small" data-history-action="edit" data-record-date="${r[0]}" aria-label="编辑记录"><i data-lucide="pencil"></i></button><button class="icon-button small" data-history-action="delete" data-record-date="${r[0]}" aria-label="删除记录"><i data-lucide="trash-2"></i></button></div></td></tr>`}).join(""); }
 
 function switchView(view){
   $$('[data-view-panel]').forEach(panel=>panel.classList.toggle("is-active",panel.dataset.viewPanel===view));
@@ -158,7 +271,13 @@ function switchView(view){
 function openModal(id){ const modal=document.getElementById(id); if(!modal)return; modal.classList.add("is-open");modal.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";setTimeout(()=>$("input,button",modal)?.focus(),50); }
 function closeModal(modal){ if(!modal)return;modal.classList.remove("is-open");modal.setAttribute("aria-hidden","true");if(!$(".modal.is-open"))document.body.style.overflow=""; }
 function showToast(title="保存成功",description="趋势图和最新结果已同步更新"){ const toast=$("#toast");$("strong",toast).textContent=title;$("small",toast).textContent=description;toast.classList.add("is-visible");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove("is-visible"),4500); }
-function saveQuick(form){ const fd=new FormData(form),item=currentItem(),unit=fd.get("unit")||item.unit,low=fd.get("low")===""?item.low:Number(fd.get("low")),high=fd.get("high")===""?item.high:Number(fd.get("high")),hospital=fd.get("hospital")||"未填写医院";rememberEntryFields(item,{unit,low,high,hospital});item.records.push([fd.get("date"),Number(fd.get("value")),hospital,fd.get("notes")||"",unit,low,high,item.name]);item.max=Math.max(item.max||0,high*1.2,Number(fd.get("value"))*1.2);item.records.sort((a,b)=>a[0].localeCompare(b[0]));renderIndicator();closeModal(form.closest(".modal"));form.reset();window.dispatchEvent(new CustomEvent("sle:data-changed"));showToast(); }
+function saveQuick(form){
+  const fd=new FormData(form),item=currentItem(),unit=fd.get("unit")||item.unit,low=fd.get("low")===""?item.low:Number(fd.get("low")),high=fd.get("high")===""?item.high:Number(fd.get("high")),hospital=fd.get("hospital")||"未填写医院",value=Number(fd.get("value"));
+  rememberEntryFields(item,{unit,low,high,hospital});
+  const record=[fd.get("date"),value,hospital,fd.get("notes")||"",unit,low,high,item.name],volumeRaw=fd.get("urineVolume"),volume=currentCategory==="kidney"&&currentIndicator==="protein24"&&volumeRaw!==null&&String(volumeRaw).trim()!==""?Number(volumeRaw):null;
+  if(Number.isFinite(volume))record[8]={volume};
+  item.records.push(record);item.max=Math.max(item.max||0,high*1.2,value*1.2);item.records.sort((a,b)=>a[0].localeCompare(b[0]));renderIndicator();closeModal(form.closest(".modal"));form.reset();window.dispatchEvent(new CustomEvent("sle:data-changed"));showToast("保存成功",Number.isFinite(volume)?"尿蛋白和尿量已加入对照曲线":"趋势图和最新结果已同步更新");
+}
 
 const medicationColorOptions=[
   {name:"淡蓝",value:"#DDEBFF"},{name:"雾蓝",value:"#E4ECF5"},{name:"天青",value:"#D9F0F4"},
@@ -188,8 +307,8 @@ const medicationFormConfigs={
       <label><span>开始日期 *</span><input name="startDate" type="date" required /></label><label><span>结束日期</span><input name="endDate" type="date" /></label><label><span>单次剂量 *</span><input name="dose" type="number" step="0.001" required placeholder="0.000" /></label>
       <label><span>剂量单位</span><select name="unit"><option>mg</option><option>g</option><option>μg</option><option>mL</option><option>IU</option><option>U</option><option>片</option><option>粒</option><option>支</option><option>瓶</option><option>自定义单位</option></select></label><label><span>使用频率</span><select name="frequency"><option>每日一次</option><option>每日两次</option><option>每日三次</option><option>每日四次</option><option>隔日一次</option><option>每周一次</option><option>每两周一次</option><option>每四周一次</option><option>每月一次</option><option>按疗程</option><option>必要时使用</option><option>自定义频率</option></select></label><label><span>给药途径</span><select name="route"><option>口服</option><option>皮下注射</option><option>静脉注射</option><option>静脉输注</option><option>肌内注射</option><option>外用</option><option>其他</option></select></label>
     </div></section>
-    <section class="med-form-section"><div class="med-form-section-head"><h3>补充说明</h3></div><div class="form-grid">
-      <label><span>医院或医生</span><input name="hospital" placeholder="选填" /></label><label><span>用药原因</span><input name="purpose" placeholder="选填" /></label><label class="med-form-full"><span>原始用药说明</span><textarea name="instruction" placeholder="按处方或医嘱原文记录"></textarea></label><label class="med-form-full"><span>备注</span><textarea name="notes" placeholder="记录个人补充说明"></textarea></label>
+    <section class="med-form-section"><div class="med-form-section-head"><h3>备注</h3></div><div class="form-grid one-column">
+      <label><span>备注（选填）</span><textarea name="notes" placeholder="记录需要补充的用药信息"></textarea></label>
     </div></section>`},
   biologic:{kicker:"BIOLOGIC TREATMENT PLAN",title:"添加单抗或生物制剂",description:"先建立治疗方案；每次实际给药需在方案中单独记录。",submit:"保存治疗方案",html:`
     <section class="med-form-section"><div class="med-form-section-head"><h3>治疗方案</h3><p>计划日期不会被系统自动认定为已经完成给药</p></div><div class="form-grid">
@@ -230,10 +349,9 @@ function addMedicationRecord(data){
   const type=data.recordType,name=escapeHTML(data.name),brand=escapeHTML(data.brand||data.category||"未填写品牌"),dose=escapeHTML(data.dose||data.dailyDose||"未填写"),unit=escapeHTML(data.unit||""),frequency=escapeHTML(data.frequency||data.sessionCount?`${data.frequency||data.sessionCount}${data.frequency?"":" 次"}`:"按记录执行"),start=escapeHTML(data.startDate?.replaceAll("-",".")||"未填写"),endDate=String(data.endDate||"").trim(),end=escapeHTML(endDate.replaceAll("-",".")),color=medicationColor(data.color),dosageForm=escapeHTML(data.dosageForm||"");
   if(type==="longTerm"||type==="biologic"){
     const icon=medicationDosageIcon(data.dosageForm,type),status=endDate?"已停药":"使用中",statusKey=endDate?"stopped":"active",period=endDate?`${start} 至 ${end}`:`${start} 至今`;
-    $(".medication-cards .wide-empty")?.remove();$(".medication-cards").insertAdjacentHTML("beforeend",`<article class="med-card dynamic-med-card" data-medication-color="${color.value}" data-medication-status="${statusKey}" data-medication-dosage-form="${dosageForm}"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:${color.value}" title="${dosageForm?`剂型：${dosageForm} · `:""}标识颜色：${color.name}"><i data-lucide="${icon}"></i></span><span class="status-badge medication-status status-${statusKey}">${status}</span></div><h3>${name}</h3><p>${brand}</p><div class="dose"><strong>${dose}</strong><span>${unit}${frequency?` · ${frequency}`:""}</span></div><dl><div><dt>用药阶段</dt><dd>${period}</dd></div><div><dt>最近调整</dt><dd>${endDate?`${end} · 结束用药`:"刚刚 · 开始用药"}</dd></div></dl><div class="card-actions"><button>${type==="biologic"?"记录给药":"调整剂量"}</button><button class="icon-button small" aria-label="更多操作"><i data-lucide="more-horizontal"></i></button></div></article>`);
+    const primaryAction=type==="biologic"?`<button data-medication-primary-action="administration" ${endDate?"hidden":""}>记录给药</button>`:"";
+    $(".medication-cards .wide-empty")?.remove();$(".medication-cards").insertAdjacentHTML("beforeend",`<article class="med-card dynamic-med-card" data-medication-color="${color.value}" data-medication-status="${statusKey}" data-medication-record-type="${escapeHTML(type)}" data-medication-start-date="${escapeHTML(data.startDate||"")}" data-medication-end-date="${escapeHTML(endDate)}" data-medication-dosage-form="${dosageForm}"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:${color.value}" title="${dosageForm?`剂型：${dosageForm} · `:""}标识颜色：${color.name}"><i data-lucide="${icon}"></i></span><span class="status-badge medication-status status-${statusKey}">${status}</span></div><h3>${name}</h3><p>${brand}</p><div class="dose"><strong>${dose}</strong><span>${unit}${frequency?` · ${frequency}`:""}</span></div><dl><div><dt>用药阶段</dt><dd>${period}</dd></div><div><dt>最近调整</dt><dd>${endDate?`${end} · 结束用药`:"刚刚 · 开始用药"}</dd></div></dl><div class="card-actions">${primaryAction}<button class="icon-button small" aria-label="更多操作"><i data-lucide="more-horizontal"></i></button></div></article>`);
     $("#currentMedicationCount").textContent=$$(".med-card").length;
-    const lanes=$("#medicationLanes"),laneExists=$$(".medication-lane",lanes).some(lane=>$(".drug-name",lane)?.textContent.trim()===String(data.name||"").trim());
-    if(!laneExists){const laneContent=type==="biologic"?`<div class="lane-track nodes"><i style="left:85%"></i></div>`:`<div class="lane-track"><span class="drug-bar dynamic-drug-bar">${dose}${unit?` ${unit}`:""}${frequency?` · ${frequency}`:""}</span></div>`;$(".causality-note",lanes).insertAdjacentHTML("beforebegin",`<div class="medication-lane" data-medication-name="${name}" style="--med-color:${color.value}"><span class="drug-name">${name}</span>${laneContent}</div>`);}
     const timeline=$(".timeline-scroll"),timelineExists=$$(".timeline-row",timeline).some(row=>$("strong",row)?.childNodes[0]?.textContent.trim()===String(data.name||"").trim());
     if(!timelineExists){const category=escapeHTML(data.category||(type==="biologic"?"生物制剂":"长期用药")),timelineContent=type==="biologic"?`<div class="timeline-track timeline-nodes"><i style="left:85%"></i></div>`:`<div class="timeline-track"><span class="stage dynamic-stage">${dose}${unit?` ${unit}`:""}${frequency?` · ${frequency}`:""}</span></div>`;timeline.insertAdjacentHTML("beforeend",`<div class="timeline-row dynamic-med-card" data-medication-name="${name}" style="--med-color:${color.value}"><strong>${name}<small>${category}</small></strong>${timelineContent}</div>`);}
   }else{
@@ -265,12 +383,12 @@ $$('[data-view]').forEach(button=>button.addEventListener("click",()=>switchView
 $$('[data-open-modal]').forEach(button=>button.addEventListener("click",()=>{if(button.dataset.openModal==="quickModal")applyQuickEntryDefaults();if(button.dataset.openModal==="checkModal")applyCheckEntryDefaults();openModal(button.dataset.openModal);}));
 $$('[data-close-modal]').forEach(button=>button.addEventListener("click",()=>closeModal(button.closest(".modal"))));
 $$('.category-tab').forEach(button=>button.addEventListener("click",()=>{ currentCategory=button.dataset.category;currentIndicator=Object.keys(indicatorData[currentCategory].items)[0];$$('.category-tab').forEach(tab=>{const active=tab===button;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",String(active));});renderIndicator(); }));
+$$('[data-category-range]').forEach(button=>button.addEventListener("click",()=>{currentRange=button.dataset.categoryRange;$$('[data-category-range]').forEach(rangeButton=>rangeButton.classList.toggle("is-active",rangeButton===button));renderIndicatorList();}));
 $$('.check-category-tab').forEach(button=>button.addEventListener("click",()=>{$$('.check-category-tab').forEach(tab=>{const active=tab===button;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",String(active));});$$('.check-category-panel').forEach(panel=>{const active=panel.dataset.checkPanel===button.dataset.checkCategory;panel.classList.toggle("is-active",active);panel.hidden=!active;});}));
 $$('.chart-controls .segmented button').forEach(button=>button.addEventListener("click",()=>{currentRange=button.dataset.range;button.parentElement.querySelectorAll("button").forEach(b=>b.classList.toggle("is-active",b===button));renderChart();}));
 $$('[data-medication-type]').forEach(button=>button.addEventListener("click",()=>openMedicationForm(button.dataset.medicationType)));
 $('#backToMedicationTypes').addEventListener("click",()=>{closeModal($('#medicationFormModal'));openModal('medicationModal');});
 $('#medicationDetailForm').addEventListener("change",event=>{const form=event.currentTarget,preview=$(".med-color-preview-icon",form);if(event.target.name==="color"){const color=medicationColor(event.target.value),name=$("[data-med-color-name]",form);if(preview)preview.style.setProperty("--med-icon-bg",color.value);if(name)name.textContent=color.name;}if(event.target.name==="dosageForm"&&preview){preview.innerHTML=`<i data-lucide="${medicationDosageIcon(event.target.value,form.elements.recordType?.value)}"></i>`;if(window.lucide)lucide.createIcons();}});
-$('#medicationSwitch').addEventListener("change",event=>$('#medicationLanes').classList.toggle("is-hidden",!event.target.checked));
 $$('.theme-toggle').forEach(button=>button.addEventListener("click",()=>{const root=document.documentElement,dark=root.dataset.theme!=="dark";root.dataset.theme=dark?"dark":"light";$$('.theme-toggle').forEach(b=>b.innerHTML=`<i data-lucide="${dark?"sun":"moon"}"></i>`);if(window.lucide)lucide.createIcons();}));
 $('#quickForm').addEventListener("submit",event=>{event.preventDefault();saveQuick(event.currentTarget)});
 $('#checkForm').addEventListener("submit",event=>{
@@ -291,7 +409,12 @@ $('#checkForm').addEventListener("submit",event=>{
     const low=optionalNumber(lowField,item.low),high=optionalNumber(highField,item.high);
     rememberEntryFields(item,{unit,low,high,hospital});
     item.max=Math.max(item.max||0,high*1.2,value*1.2);
-    item.records.push([recordDate,value,hospital,fd.get("notes")||"",unit,low,high,item.name]);
+    const record=[recordDate,value,hospital,fd.get("notes")||"",unit,low,high,item.name];
+    if(key==="protein24"){
+      const volumeRaw=fd.get("protein24UrineVolume"),volume=volumeRaw!==null&&String(volumeRaw).trim()!==""?Number(volumeRaw):null;
+      if(Number.isFinite(volume))record[8]={volume};
+    }
+    item.records.push(record);
     item.records.sort((a,b)=>a[0].localeCompare(b[0]));
     if(!firstSaved)firstSaved=[category,key];
     savedCount++;
@@ -312,6 +435,31 @@ $$('.lab-item-option input:not(:disabled)').forEach(input=>input.addEventListene
 $('#labItemSearch').addEventListener("input",event=>{const query=event.target.value.trim().toLowerCase();let visibleCount=0;$$('.lab-item-group').forEach(group=>{let groupCount=0;$$('.lab-item-option',group).forEach(option=>{const visible=!query||option.dataset.search.toLowerCase().includes(query);option.hidden=!visible;if(visible){groupCount++;visibleCount++;}});group.hidden=!groupCount;});$('#labItemEmpty').classList.toggle("is-visible",!visibleCount);});
 $('#addSelectedLabItems').addEventListener("click",()=>{const selected=$$(".lab-item-option input:checked",$('#labItemGroups'));selected.forEach(input=>appendLabEntry(input.closest('.lab-item-option')));updateLabItemSelection();closeModal($('#labItemModal'));if(window.lucide)lucide.createIcons();});
 $('#toast button').addEventListener("click",()=>$('#toast').classList.remove("is-visible"));
-document.addEventListener("keydown",event=>{if(event.key==="Escape")closeModal($$(".modal.is-open").at(-1));});
+document.addEventListener("click",event=>{
+  const chartPoint=event.target.closest('[data-point-date]');
+  if(chartPoint){
+    const chart=chartPoint.closest(".indicator-card-chart"),tooltip=$(".indicator-mini-tooltip",chart),wasPinned=tooltip?.classList.contains("is-pinned")&&chartPoint.classList.contains("is-active");
+    if(wasPinned)hideIndicatorPointTooltip(chart,true);else showIndicatorPointTooltip(chartPoint,true);
+    return;
+  }
+  $$(".indicator-mini-tooltip.is-pinned").forEach(tooltip=>hideIndicatorPointTooltip(tooltip.closest(".indicator-card-chart"),true));
+  const pageButton=event.target.closest('[data-history-page]');
+  if(pageButton&&!pageButton.disabled){const key=pageButton.dataset.historyPageKey,token=`${currentCategory}:${key}`;indicatorHistoryPages.set(token,Number(pageButton.dataset.historyPage));renderIndicatorList();return;}
+  const historyButton=event.target.closest('[data-indicator-history]');
+  if(historyButton){const key=historyButton.dataset.indicatorHistory,token=`${currentCategory}:${key}`;if(expandedIndicatorHistoryCards.has(token))expandedIndicatorHistoryCards.delete(token);else expandedIndicatorHistoryCards.add(token);renderIndicatorList();return;}
+  const addButton=event.target.closest('[data-indicator-add]');
+  if(addButton){currentIndicator=addButton.dataset.indicatorAdd;renderIndicator();applyQuickEntryDefaults();openModal('quickModal');return;}
+  const recordButton=event.target.closest('[data-indicator-record]');
+  if(recordButton)currentIndicator=recordButton.dataset.indicatorRecord;
+});
+document.addEventListener("pointerover",event=>{const point=event.target.closest('[data-point-date]');if(point&&!point.closest(".indicator-card-chart")?.querySelector(".indicator-mini-tooltip.is-pinned"))showIndicatorPointTooltip(point);});
+document.addEventListener("pointerout",event=>{const point=event.target.closest('[data-point-date]');if(point&&!point.contains(event.relatedTarget))hideIndicatorPointTooltip(point.closest(".indicator-card-chart"));});
+document.addEventListener("focusin",event=>{const point=event.target.closest('[data-point-date]');if(point)showIndicatorPointTooltip(point);});
+document.addEventListener("focusout",event=>{const point=event.target.closest('[data-point-date]');if(point)hideIndicatorPointTooltip(point.closest(".indicator-card-chart"));});
+document.addEventListener("keydown",event=>{
+  const point=event.target.closest?.('[data-point-date]');
+  if(point&&(event.key==="Enter"||event.key===" ")){event.preventDefault();showIndicatorPointTooltip(point,true);return;}
+  if(event.key==="Escape"){$$(".indicator-mini-tooltip.is-visible").forEach(tooltip=>hideIndicatorPointTooltip(tooltip.closest(".indicator-card-chart"),true));closeModal($$(".modal.is-open").at(-1));}
+});
 let chartResizeTimer;window.addEventListener("resize",()=>{clearTimeout(chartResizeTimer);chartResizeTimer=setTimeout(renderChart,120);});
 renderIndicator(); if(window.lucide)lucide.createIcons();

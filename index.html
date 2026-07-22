@@ -82,6 +82,18 @@
             <button class="category-tab" data-category="other" role="tab" aria-selected="false">其他指标</button>
           </div>
 
+          <div class="indicator-list-controls">
+            <div class="segmented indicator-range-control" role="group" aria-label="指标趋势时间范围">
+              <button type="button" data-category-range="6m">近 6 个月</button>
+              <button type="button" class="is-active" data-category-range="1y">近 1 年</button>
+              <button type="button" data-category-range="3y">3 年</button>
+              <button type="button" data-category-range="all">全部</button>
+            </div>
+            <button class="add-indicator list-add-indicator" data-open-modal="indicatorModal" aria-label="添加指标"><i data-lucide="plus"></i><span>添加指标</span></button>
+          </div>
+
+          <section class="indicator-trend-list" id="indicatorTrendList" aria-live="polite"></section>
+
           <div class="indicator-picker-wrap">
             <div class="indicator-picker" id="indicatorPicker" aria-label="选择指标"></div>
             <button class="add-indicator" data-open-modal="indicatorModal" aria-label="添加指标"><i data-lucide="plus"></i>添加指标</button>
@@ -108,7 +120,6 @@
                 <div class="segmented" aria-label="趋势时间范围">
                   <button data-range="6m">6 月</button><button class="is-active" data-range="1y">1 年</button><button data-range="2y">2 年</button><button data-range="all">全部</button>
                 </div>
-                <label class="switch-control"><span>显示用药</span><input id="medicationSwitch" type="checkbox" checked /><span class="switch" aria-hidden="true"></span></label>
               </div>
             </div>
 
@@ -116,13 +127,6 @@
             <div class="chart-wrap">
               <svg id="trendChart" role="img" aria-label="补体 C3 长期趋势图" viewBox="0 0 960 300" preserveAspectRatio="none"></svg>
               <div class="chart-tooltip" id="chartTooltip" role="status"></div>
-            </div>
-            <div class="medication-lanes" id="medicationLanes">
-              <div class="lane-label"><span>同期用药</span></div>
-              <div class="medication-lane" data-medication-name="泼尼松" style="--med-color:#F9DCE5"><span class="drug-name">泼尼松</span><div class="lane-track"><span class="drug-bar bar-one">15 mg / 日</span></div></div>
-              <div class="medication-lane" data-medication-name="吗替麦考酚酯" style="--med-color:#DDEBFF"><span class="drug-name">吗替麦考酚酯</span><div class="lane-track"><span class="drug-bar bar-two">0.5 g · 每日两次</span></div></div>
-              <div class="medication-lane" data-medication-name="贝利尤单抗" style="--med-color:#EADDF7"><span class="drug-name">贝利尤单抗</span><div class="lane-track nodes"><i style="left:12%"></i><i style="left:31%"></i><i style="left:51%"></i><i style="left:70%"></i><i style="left:90%"></i></div></div>
-              <p class="causality-note"><i data-lucide="info"></i>用药信息仅用于时间对照，不代表药物与指标变化存在因果关系。</p>
             </div>
           </article>
 
@@ -146,8 +150,8 @@
           <section class="current-medications">
             <div class="section-heading medication-section-heading"><div><p class="section-kicker">CURRENT</p><h2>当前用药 <span id="currentMedicationCount">3</span></h2></div><div class="medication-status-tabs" role="tablist" aria-label="用药状态"><button type="button" class="is-active" role="tab" aria-selected="true" data-medication-filter="active">使用中</button><button type="button" role="tab" aria-selected="false" data-medication-filter="inactive">暂停/停止</button></div></div>
             <div class="medication-cards">
-              <article class="med-card" data-medication-color="#F9DCE5"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#F9DCE5" title="标识颜色：淡粉色"><i data-lucide="pill"></i></span><span class="status-badge neutral">使用中</span></div><h3>泼尼松</h3><p>醋酸泼尼松片</p><div class="dose"><strong>15</strong><span>mg / 日</span></div><dl><div><dt>当前阶段</dt><dd>2026.02.18 至今</dd></div><div><dt>最近调整</dt><dd>5 个月前 · 减少剂量</dd></div></dl><div class="card-actions"><button>调整剂量</button><button class="icon-button small" aria-label="泼尼松更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
-              <article class="med-card" data-medication-color="#DDEBFF"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#DDEBFF" title="标识颜色：淡蓝"><i data-lucide="pill"></i></span><span class="status-badge neutral">使用中</span></div><h3>吗替麦考酚酯</h3><p>骁悉</p><div class="dose"><strong>0.5</strong><span>g · 每日两次</span></div><dl><div><dt>当前阶段</dt><dd>2025.09.03 至今</dd></div><div><dt>最近调整</dt><dd>10 个月前 · 开始用药</dd></div></dl><div class="card-actions"><button>调整剂量</button><button class="icon-button small" aria-label="吗替麦考酚酯更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
+              <article class="med-card" data-medication-color="#F9DCE5"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#F9DCE5" title="标识颜色：淡粉色"><i data-lucide="pill"></i></span><span class="status-badge neutral">使用中</span></div><h3>泼尼松</h3><p>醋酸泼尼松片</p><div class="dose"><strong>15</strong><span>mg / 日</span></div><dl><div><dt>当前阶段</dt><dd>2026.02.18 至今</dd></div><div><dt>最近调整</dt><dd>5 个月前 · 减少剂量</dd></div></dl><div class="card-actions"><button class="icon-button small" aria-label="泼尼松更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
+              <article class="med-card" data-medication-color="#DDEBFF"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#DDEBFF" title="标识颜色：淡蓝"><i data-lucide="pill"></i></span><span class="status-badge neutral">使用中</span></div><h3>吗替麦考酚酯</h3><p>骁悉</p><div class="dose"><strong>0.5</strong><span>g · 每日两次</span></div><dl><div><dt>当前阶段</dt><dd>2025.09.03 至今</dd></div><div><dt>最近调整</dt><dd>10 个月前 · 开始用药</dd></div></dl><div class="card-actions"><button class="icon-button small" aria-label="吗替麦考酚酯更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
               <article class="med-card" data-medication-color="#EADDF7"><div class="med-card-head"><span class="med-icon" style="--med-icon-bg:#EADDF7" title="标识颜色：淡紫色"><i data-lucide="syringe"></i></span><span class="status-badge neutral">治疗中</span></div><h3>贝利尤单抗</h3><p>倍力腾</p><div class="dose"><strong>200</strong><span>mg · 每 4 周</span></div><dl><div><dt>下次给药</dt><dd>2026.07.24</dd></div><div><dt>已完成</dt><dd>5 次实际给药</dd></div></dl><div class="card-actions"><button>记录给药</button><button class="icon-button small" aria-label="贝利尤单抗更多操作"><i data-lucide="more-horizontal"></i></button></div></article>
             </div>
           </section>
@@ -175,7 +179,7 @@
             <div class="settings-sections">
               <section class="settings-group"><div class="settings-title"><p class="section-kicker">PROFILE</p><h2>个人信息</h2></div><div class="setting-row"><span><strong>昵称</strong><small>用于界面中的称呼</small></span><span data-profile-nickname>韩锦泽</span><button data-account-action="nickname">修改</button></div><div class="setting-row"><span><strong>用户名</strong><small>用于账号登录</small></span><span data-profile-username>hanjinze</span><button data-account-action="username">修改</button></div><div class="setting-row"><span><strong>登录密码</strong><small>建议定期更换密码</small></span><span>已设置</span><button data-account-action="password">修改</button></div><div class="setting-row"><span><strong>登录方式</strong><small>使用用户名和密码验证身份</small></span><span>用户名 + 密码</span></div></section>
               <section class="settings-group"><div class="settings-title"><p class="section-kicker">SYNC</p><h2>云端同步</h2></div><div class="sync-panel"><span class="sync-icon"><i data-lucide="cloud"></i></span><div><strong id="syncTitle">全部数据已同步</strong><small id="syncDescription">最近同步于今天 09:42 · 当前网络正常</small></div><button class="button secondary" id="manualSyncButton"><i data-lucide="refresh-cw"></i>重新同步</button></div></section>
-              <section class="settings-group"><div class="settings-title"><p class="section-kicker">DATA</p><h2>数据管理</h2></div><div class="data-actions"><button data-data-action="export-json"><i data-lucide="file-json"></i><span><strong>导出完整备份</strong><small>包含指标、用药与个人设置的备份文件</small></span><i data-lucide="download"></i></button><button data-data-action="export-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出指标表格</strong><small>导出全部历史化验结果和参考范围</small></span><i data-lucide="download"></i></button><button data-data-action="export-med-csv"><i data-lucide="file-spreadsheet"></i><span><strong>导出用药表格</strong><small>导出阶段、给药和个人观察记录</small></span><i data-lucide="download"></i></button><button data-data-action="import-json"><i data-lucide="rotate-ccw"></i><span><strong>从备份恢复</strong><small>导入之前导出的完整备份文件</small></span><i data-lucide="chevron-right"></i></button></div><input type="file" id="backupFileInput" accept="application/json,.json" hidden /><div class="data-delete-actions"><button data-data-action="clear-indicators"><i data-lucide="trash-2"></i>删除全部指标数据</button><button data-data-action="clear-medications"><i data-lucide="trash-2"></i>删除全部用药数据</button></div></section>
+              <section class="settings-group"><div class="settings-title"><p class="section-kicker">DATA</p><h2>数据管理</h2></div><div class="data-actions"><button data-data-action="export-backup-xlsx"><i data-lucide="file-spreadsheet"></i><span><strong>导出完整备份</strong><small>包含指标、用药与个人设置的 Excel 文件</small></span><i data-lucide="download"></i></button><button data-data-action="export-indicators-xlsx"><i data-lucide="file-spreadsheet"></i><span><strong>导出指标表格</strong><small>导出全部历史化验结果和参考范围</small></span><i data-lucide="download"></i></button><button data-data-action="export-medications-xlsx"><i data-lucide="file-spreadsheet"></i><span><strong>导出用药表格</strong><small>导出阶段、给药和个人观察记录</small></span><i data-lucide="download"></i></button><button data-data-action="import-backup"><i data-lucide="rotate-ccw"></i><span><strong>从备份恢复</strong><small>导入此前导出的完整备份 Excel</small></span><i data-lucide="chevron-right"></i></button></div><input type="file" id="backupFileInput" accept=".xlsx,.json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json" hidden /><div class="data-delete-actions"><button data-data-action="clear-indicators"><i data-lucide="trash-2"></i>删除全部指标数据</button><button data-data-action="clear-medications"><i data-lucide="trash-2"></i>删除全部用药数据</button></div></section>
               <section class="settings-group danger-zone"><div class="settings-title"><p class="section-kicker">DANGER ZONE</p><h2>账号操作</h2></div><div class="setting-row"><span><strong>退出登录</strong><small>云端数据不会被删除</small></span><button data-account-action="logout">退出</button></div><div class="setting-row"><span><strong>注销账号</strong><small>永久删除云端账号及全部数据，此操作无法撤销</small></span><button class="danger-text" data-account-action="delete-account">注销</button></div></section>
             </div>
           </div>
@@ -214,6 +218,10 @@
           <div class="check-category-panel" data-check-panel="kidney" role="tabpanel" hidden>
             <div class="lab-entry-list">
               <div class="lab-entry"><strong>24 小时尿蛋白</strong><label><span>结果</span><input name="protein24Value" type="number" step="0.001" placeholder="0.000" /></label><label><span>单位</span><input name="protein24Unit" value="g/24h" /></label><label><span>参考下限</span><input name="protein24Low" type="number" value="0" /></label><label><span>参考上限</span><input name="protein24High" type="number" value="0.15" /></label></div>
+              <div class="lab-entry-companion urine-check-entry">
+                <div><strong>24 小时尿量</strong><small>与本次尿蛋白记录使用同一检查日期</small></div>
+                <label><span>尿量（选填）</span><span class="fixed-unit-input"><input name="protein24UrineVolume" type="number" step="1" min="0" inputmode="decimal" placeholder="例如：1800" /><b>毫升</b></span></label>
+              </div>
               <div class="lab-entry"><strong>尿蛋白肌酐比</strong><label><span>结果</span><input name="upcrValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="upcrUnit" value="mg/g" /></label><label><span>参考下限</span><input name="upcrLow" type="number" value="0" /></label><label><span>参考上限</span><input name="upcrHigh" type="number" value="150" /></label></div>
               <div class="lab-entry"><strong>eGFR</strong><label><span>结果</span><input name="egfrValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="egfrUnit" value="mL/min" /></label><label><span>参考下限</span><input name="egfrLow" type="number" value="90" /></label><label><span>参考上限</span><input name="egfrHigh" type="number" value="130" /></label></div>
               <div class="lab-entry"><strong>血肌酐</strong><label><span>结果</span><input name="creatinineValue" type="number" step="0.1" placeholder="0.0" /></label><label><span>单位</span><input name="creatinineUnit" value="μmol/L" /></label><label><span>参考下限</span><input name="creatinineLow" type="number" value="41" /></label><label><span>参考上限</span><input name="creatinineHigh" type="number" value="73" /></label></div>
@@ -241,7 +249,20 @@
     <div class="modal compact-modal" id="quickModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="quickModalTitle">
       <div class="modal-backdrop" data-close-modal></div><div class="modal-panel compact">
         <div class="modal-header"><div><p class="section-kicker">QUICK ENTRY</p><h2 id="quickModalTitle">添加 C3 数据</h2><p>快速记录当前指标，不影响默认设置。</p></div><button class="icon-button" data-close-modal aria-label="关闭"><i data-lucide="x"></i></button></div>
-        <form id="quickForm"><div class="form-grid one-column"><label><span>检查日期 *</span><input name="date" type="date" required value="2026-07-17" /></label><div class="inline-fields"><label><span>检查结果 *</span><input name="value" type="number" step="0.001" required placeholder="0.000" /></label><label><span>单位</span><input name="unit" value="g/L" /></label></div><div class="inline-fields"><label><span>参考范围下限</span><input name="low" type="number" step="0.01" value="0.79" /></label><label><span>参考范围上限</span><input name="high" type="number" step="0.01" value="1.52" /></label></div><label><span>医院</span><input name="hospital" placeholder="输入医院名称" /></label><label><span>备注</span><textarea name="notes" placeholder="选填"></textarea></label></div><div class="modal-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="submit" class="button primary">保存数据</button></div></form>
+        <form id="quickForm">
+          <div class="form-grid one-column">
+            <label><span>检查日期 *</span><input name="date" type="date" required value="2026-07-17" /></label>
+            <div class="inline-fields"><label><span>检查结果 *</span><input name="value" type="number" step="0.001" required placeholder="0.000" /></label><label><span>单位</span><input name="unit" value="g/L" /></label></div>
+            <div class="inline-fields"><label><span>参考范围下限</span><input name="low" type="number" step="0.01" value="0.79" /></label><label><span>参考范围上限</span><input name="high" type="number" step="0.01" value="1.52" /></label></div>
+            <section class="urine-volume-fields" id="quickUrineVolumeFields" hidden aria-labelledby="quickUrineVolumeTitle">
+              <div><strong id="quickUrineVolumeTitle">24 小时尿量</strong><small>与本次尿蛋白数据绑定，用于趋势对照</small></div>
+              <label><span>尿量（选填）</span><span class="fixed-unit-input"><input name="urineVolume" type="number" step="1" min="0" inputmode="decimal" placeholder="例如：1800" /><b>毫升</b></span></label>
+            </section>
+            <label><span>医院</span><input name="hospital" placeholder="输入医院名称" /></label>
+            <label><span>备注</span><textarea name="notes" placeholder="选填"></textarea></label>
+          </div>
+          <div class="modal-actions"><button type="button" class="button secondary" data-close-modal>取消</button><button type="submit" class="button primary">保存数据</button></div>
+        </form>
       </div>
     </div>
 
@@ -310,6 +331,7 @@
     <script src="./supabase-config.js?v=20260717-supabase"></script>
     <script src="./supabase-client.js?v=20260717-username-auth"></script>
     <script src="./app.js?v=20260721-release"></script>
+    <script type="module" src="./vendor/xlsx-browser-init.mjs?v=20260721"></script>
     <script src="./features.js?v=20260721-release"></script>
     <script src="./controls.js?v=20260721-release"></script>
   </body>

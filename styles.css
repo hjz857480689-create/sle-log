@@ -420,6 +420,11 @@
   transform:translate(-50%,-50%);
   z-index:2;
 }
+.timeline-event.administration-event{
+  width:7px;
+  height:7px;
+  border-color:rgba(17,17,17,.55);
+}
 .timeline-event::after{
   content:"";
   position:absolute;
@@ -509,6 +514,7 @@
   .timeline-card.is-expanded .chart-header{top:-14px;margin:-14px -20px 0;padding:12px 20px 10px}
   .timeline-card.is-expanded .timeline-rotate-hint{display:none}
   .timeline-card.is-expanded .timeline-filter{margin:14px 0 12px}
+  .timeline-card.is-expanded .timeline-row{min-height:30px}
   .timeline-card.is-expanded .chart-header{display:grid;grid-template-columns:minmax(180px,1fr) auto;align-items:center;gap:16px}
   .timeline-card.is-expanded .chart-header>div:first-child p:last-child{display:none}
   .timeline-card.is-expanded .timeline-header-actions{width:auto;margin-top:0;flex-direction:row;align-items:center}
@@ -1330,5 +1336,320 @@
   .record-types small,
   .toast small{
     font-size:10px;
+  }
+}
+
+/* Keep medication history dense enough to scan without losing stage labels. */
+.timeline-row{
+  min-height:48px;
+}
+
+@media(max-width:767px){
+  .timeline-row{
+    min-height:30px;
+  }
+}
+
+/* Category-first indicator overview. The previous single-indicator detail DOM
+   remains available to existing record actions, but is no longer the primary UI. */
+#indicatorsView>.indicator-picker-wrap,
+#indicatorsView>.overview-grid,
+#indicatorsView>.chart-card,
+#indicatorsView>.history-section{
+  display:none;
+}
+
+.indicator-list-controls{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:20px 0 18px;
+}
+.indicator-range-control{flex:0 1 460px;height:40px}
+.indicator-range-control button{flex:1;min-width:88px;font-size:12px}
+.list-add-indicator{width:40px;height:40px;margin-left:auto;padding:0;justify-content:center}
+.indicator-trend-list{display:grid;gap:14px}
+.indicator-trend-card{
+  --indicator-accent:#111;
+  overflow:hidden;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface1);
+  transition:border-color 160ms var(--ease),transform 160ms var(--ease);
+}
+.indicator-trend-card:hover{border-color:var(--border-visible)}
+.indicator-trend-card.status-success{--indicator-accent:#2f806a}
+.indicator-trend-card.status-warning{--indicator-accent:#6f96a9}
+.indicator-trend-card.status-error{--indicator-accent:#b86558}
+.indicator-trend-card.status-neutral{--indicator-accent:var(--text3)}
+.indicator-card-summary{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:24px;
+  padding:22px 24px 4px;
+}
+.indicator-card-copy{min-width:0}
+.indicator-card-title{display:flex;align-items:center;gap:10px}
+.indicator-card-title h2{margin:0;font:600 18px/1.35 var(--font-display);letter-spacing:-.015em}
+.indicator-card-title .status-badge{color:var(--indicator-accent);background:color-mix(in srgb,var(--indicator-accent) 10%,transparent)}
+.indicator-card-copy p{margin:5px 0 2px;color:var(--text2);font-size:12px}
+.indicator-card-copy>small{color:var(--text3);font-size:11px}
+.indicator-card-value{display:flex;align-items:baseline;justify-content:flex-end;gap:7px;color:var(--indicator-accent);font-variant-numeric:tabular-nums}
+.indicator-card-value strong{font:700 38px/1 var(--font-display);letter-spacing:-.035em}
+.indicator-card-value span{max-width:130px;color:var(--text3);font-size:12px;text-align:right}
+.indicator-card-value small{display:block;color:var(--text2);font-size:10px;font-weight:500;white-space:nowrap}
+.indicator-card-chart{position:relative;height:168px;padding:0 18px 2px;display:flex;flex-direction:column}
+.indicator-card-chart:has(.indicator-dual-legend){height:192px}
+.indicator-mini-chart{display:block;width:100%;height:auto;min-height:0;flex:1;overflow:visible}
+.indicator-mini-range{fill:color-mix(in srgb,var(--indicator-accent) 8%,var(--surface2))}
+.indicator-mini-limit{stroke:color-mix(in srgb,var(--indicator-accent) 22%,var(--border));stroke-width:1;stroke-dasharray:4 5;vector-effect:non-scaling-stroke}
+.indicator-mini-path{fill:none;stroke:var(--indicator-accent);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.indicator-mini-volume-path{fill:none;stroke:var(--text3);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:4 5;opacity:.48;vector-effect:non-scaling-stroke}
+.indicator-mini-point{cursor:pointer;outline:none}
+.indicator-mini-hit{fill:transparent;pointer-events:all}
+.indicator-mini-ring{fill:none;stroke:var(--text1);stroke-width:1.25;opacity:0;vector-effect:non-scaling-stroke;transition:opacity 160ms var(--ease),r 160ms var(--ease)}
+.indicator-mini-dot{fill:var(--indicator-accent);stroke:none;vector-effect:non-scaling-stroke;transition:r 160ms var(--ease)}
+.indicator-mini-volume-dot{fill:var(--text3);opacity:.72}
+.indicator-mini-volume-point .indicator-mini-ring{stroke:var(--text3)}
+.indicator-mini-point:hover .indicator-mini-ring,.indicator-mini-point:focus-visible .indicator-mini-ring,.indicator-mini-point.is-active .indicator-mini-ring{opacity:1}
+.indicator-mini-point:hover .indicator-mini-dot,.indicator-mini-point:focus-visible .indicator-mini-dot,.indicator-mini-point.is-active .indicator-mini-dot{r:5.75}
+.indicator-mini-date{fill:var(--text3);font:11px var(--font-display)}
+.indicator-mini-tooltip{position:absolute;z-index:3;max-width:min(240px,calc(100% - 16px));padding:9px 12px;border:1px solid color-mix(in srgb,var(--surface1) 80%,var(--border-visible));border-radius:10px;background:color-mix(in srgb,var(--surface1) 92%,transparent);box-shadow:0 12px 32px rgba(17,17,17,.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--text1);font-variant-numeric:tabular-nums;pointer-events:none;opacity:0;transform:translate(-50%,calc(-100% - 4px));transition:opacity 100ms var(--ease),transform 160ms var(--ease)}
+.indicator-mini-tooltip.is-visible{opacity:1;transform:translate(-50%,-100%)}
+.indicator-mini-tooltip time{display:block;color:var(--text3);font:500 11px/1.4 var(--font-body);white-space:nowrap}
+.indicator-mini-tooltip strong{display:block;margin-top:2px;font:600 13px/1.4 var(--font-display);white-space:nowrap}
+.indicator-mini-tooltip small{display:block;margin-top:1px;color:var(--text3);font-size:10px;white-space:nowrap}
+.indicator-dual-legend{min-height:24px;margin:0 18px 2px;flex:0 0 auto;display:flex;align-items:center;gap:14px;color:var(--text2);font-size:10px;line-height:1.3}
+.indicator-dual-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.indicator-dual-legend i{width:14px;height:2px;border-radius:999px;background:var(--indicator-accent)}
+.indicator-dual-legend span:nth-child(2) i{height:1px;background:var(--text3);opacity:.58}
+.indicator-dual-legend small{margin-left:auto;color:var(--text3);white-space:nowrap}
+.indicator-mini-empty{height:100%;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--text3);font-size:12px}
+.indicator-mini-empty svg{width:16px}
+.indicator-card-actions{min-height:48px;padding:0 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.indicator-card-actions button{border:0;background:transparent;color:var(--text2);display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500}
+.indicator-card-actions button:hover{color:var(--text1)}
+.indicator-card-actions svg{width:15px;height:15px}
+.indicator-expand[aria-expanded="true"] svg{transform:rotate(180deg)}
+.indicator-expand svg{transition:transform 180ms var(--ease)}
+.indicator-card-details{padding:18px 24px 22px;border-top:1px solid var(--border);background:var(--surface3)}
+.indicator-card-details[hidden]{display:none}
+.indicator-history-details .indicator-recent-records{margin-top:0;padding-top:0;border-top:0}
+.indicator-details-heading h3,.indicator-recent-records h4{margin:0;font-size:13px}
+.indicator-details-heading p{margin:3px 0 14px;color:var(--text3);font-size:10px}
+.indicator-medication-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.indicator-medication-item{min-width:0;min-height:48px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface1);display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:9px}
+.indicator-medication-item>i{width:8px;height:28px;border-radius:999px;background:var(--med-color)}
+.indicator-medication-item>span{min-width:0;display:flex;flex-direction:column}
+.indicator-medication-item strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.indicator-medication-item small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text3);font-size:10px}
+.indicator-medication-item em{font-style:normal;color:var(--text2);font-size:10px;white-space:nowrap}
+.indicator-medication-empty{min-height:64px;padding:12px;border:1px dashed var(--border-visible);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--text3)}
+.indicator-medication-empty>span{display:flex;flex-direction:column}
+.indicator-medication-empty strong{color:var(--text2);font-size:11px}
+.indicator-medication-empty small{font-size:10px}
+.indicator-recent-records{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.indicator-recent-records h4{margin-bottom:7px}
+.indicator-record-row{min-height:42px;display:grid;grid-template-columns:92px 140px minmax(0,1fr) auto;align-items:center;gap:12px;border-top:1px solid var(--border);font-size:11px}
+.indicator-record-row time,.indicator-record-row>span{color:var(--text2)}
+.indicator-record-row strong{font-size:12px;font-variant-numeric:tabular-nums}
+.indicator-record-row strong small{color:var(--text3);font-weight:400}
+.indicator-record-row strong em{display:block;color:var(--text2);font:500 10px/1.4 var(--font-body)}
+.indicator-record-actions{display:flex;justify-content:flex-end}
+.indicator-history-pagination{min-height:42px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+.indicator-history-pagination button{min-height:34px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--text2);display:inline-flex;align-items:center;gap:5px;font-size:11px}
+.indicator-history-pagination button:first-child{justify-self:start}
+.indicator-history-pagination button:last-child{justify-self:end}
+.indicator-history-pagination button:hover:not(:disabled){background:var(--surface1);color:var(--text1)}
+.indicator-history-pagination button:disabled{color:var(--text3);opacity:.45;cursor:default}
+.indicator-history-pagination button svg{width:14px;height:14px}
+.indicator-history-pagination small{color:var(--text3);font-size:10px;font-variant-numeric:tabular-nums}
+.indicator-list-empty{min-height:260px;border:1px dashed var(--border-visible);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3)}
+.indicator-list-empty>svg{width:24px;height:24px;margin-bottom:10px}
+.indicator-list-empty strong{color:var(--text1);font-size:13px}
+.indicator-list-empty small{margin-top:3px;font-size:11px}
+
+@media(max-width:767px){
+  .indicator-list-controls{margin:14px 0 12px;gap:8px}
+  .indicator-range-control{min-width:0;flex:1;height:44px}
+  .indicator-range-control button{min-width:0;height:36px;padding:0 8px;font-size:12px;white-space:nowrap}
+  .list-add-indicator{flex:0 0 44px;width:44px;height:44px;margin:0}
+  .list-add-indicator span{display:none}
+  .indicator-trend-list{gap:10px}
+  .indicator-trend-card{border-radius:14px}
+  .indicator-card-summary{gap:12px;padding:17px 16px 2px}
+  .indicator-card-title{align-items:flex-start;gap:7px;flex-wrap:wrap}
+  .indicator-card-title h2{font-size:16px}
+  .indicator-card-title .status-badge{height:22px;padding:0 8px;font-size:10px;line-height:22px}
+  .indicator-card-copy p{margin-top:4px;font-size:11px;line-height:1.45}
+  .indicator-card-copy>small{font-size:10px}
+  .indicator-card-value{align-self:start;display:grid;grid-template-columns:auto;gap:0;text-align:right}
+  .indicator-card-value strong{font-size:30px}
+  .indicator-card-value span{font-size:10px}
+  .indicator-card-chart{height:128px;padding:0 8px}
+  .indicator-card-chart:has(.indicator-dual-legend){height:166px}
+  .indicator-dual-legend{margin:0 8px 1px;gap:9px;flex-wrap:wrap}
+  .indicator-dual-legend small{width:100%;margin:0}
+  .indicator-mini-date{font-size:10px}
+  .indicator-card-actions{min-height:44px;padding:0 14px}
+  .indicator-card-actions button{font-size:11px}
+  .indicator-card-details{padding:15px 14px 18px}
+  .indicator-details-heading p{line-height:1.5}
+  .indicator-medication-grid{grid-template-columns:1fr}
+  .indicator-record-row{grid-template-columns:74px minmax(90px,.7fr) minmax(0,1fr) auto;gap:7px}
+  .indicator-record-row>span:not(.indicator-record-actions){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .indicator-record-actions .icon-button{width:30px;height:30px}
+  .indicator-history-pagination button{min-width:44px;min-height:40px}
+  .indicator-history-pagination button span{display:none}
+}
+
+.urine-volume-fields,.lab-entry-companion{border:1px solid var(--border);border-radius:12px;background:var(--surface3)}
+.form-grid [data-edit-urine-volume][hidden]{display:none!important}
+.urine-volume-fields{grid-column:1/-1;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.8fr);align-items:end;gap:16px}
+.urine-volume-fields[hidden]{display:none}
+.urine-volume-fields>div,.lab-entry-companion>div{display:flex;flex-direction:column}
+.urine-volume-fields strong,.lab-entry-companion strong{font-size:12px}
+.urine-volume-fields small,.lab-entry-companion small{color:var(--text3);font-size:10px}
+.urine-volume-fields label,.lab-entry-companion label{display:flex;flex-direction:column;gap:6px;color:var(--text2);font-size:11px}
+.fixed-unit-input{position:relative;display:block}
+.fixed-unit-input input{padding-right:58px!important}
+.fixed-unit-input b{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:11px;font-weight:500;pointer-events:none}
+.lab-entry-companion{margin:0 12px 12px;padding:12px;display:grid;grid-template-columns:120px minmax(220px,1fr);align-items:end;gap:10px}
+.lab-entry-companion input{width:100%;height:40px;border:1px solid transparent;border-radius:10px;background:var(--surface2);padding:0 13px;outline:none}
+.lab-entry-companion input:focus{background:var(--surface1);border-color:var(--border-visible);box-shadow:0 0 0 3px var(--accent-subtle)}
+.record-companion{display:block;margin-top:2px;color:var(--text2);font:500 10px/1.4 var(--font-body)}
+.trend-volume-path{fill:none;stroke:var(--text3);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:5 5;opacity:.5;vector-effect:non-scaling-stroke}
+.trend-volume-dot{fill:var(--text3);stroke:var(--surface1);stroke-width:1;opacity:.75;cursor:pointer;vector-effect:non-scaling-stroke}
+.axis-label.volume-axis{fill:var(--text2);font-weight:500}
+
+@media(max-width:767px){
+  .urine-volume-fields{grid-template-columns:1fr;gap:10px}
+  .lab-entry-companion{grid-template-columns:1fr;margin:0 10px 10px}
+  .lab-entry-companion input{height:44px;font-size:16px}
+}
+
+/* Mobile medication cards: compact scan-first hierarchy. */
+.medication-cards .card-actions>.icon-button:only-child{
+  flex:0 0 44px;
+  min-width:44px;
+  width:44px;
+  height:44px;
+  padding:0;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+
+@media(max-width:767px){
+  .medication-cards{gap:10px}
+  .medication-cards .med-card{
+    padding:13px 14px 12px;
+    grid-template-columns:36px minmax(0,1fr) auto;
+    grid-template-rows:auto auto auto auto;
+    column-gap:10px;
+    row-gap:0;
+    border-radius:13px;
+  }
+  .medication-cards .med-card:hover{transform:none}
+
+  .medication-cards .med-icon{
+    grid-column:1;
+    grid-row:1/3;
+    width:36px;
+    height:36px;
+    border-radius:9px;
+  }
+  .medication-cards .med-icon svg{width:16px;height:16px}
+
+  .medication-cards .med-card h3{
+    grid-column:2;
+    grid-row:1;
+    align-self:end;
+    margin:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:14px;
+    line-height:1.3;
+  }
+  .medication-cards .med-card>p{
+    grid-column:2;
+    grid-row:2;
+    margin:1px 0 0;
+    font-size:10px;
+    line-height:1.35;
+  }
+  .medication-cards .status-badge{
+    grid-column:3;
+    grid-row:1/3;
+    align-self:center;
+    justify-self:end;
+    width:max-content;
+    height:24px;
+    margin-left:6px;
+    padding:0 9px;
+    line-height:24px;
+    font-size:10px;
+  }
+
+  .medication-cards .dose{
+    grid-column:1/3;
+    grid-row:3;
+    min-width:0;
+    margin:10px 0 0;
+    gap:5px;
+    white-space:nowrap;
+  }
+  .medication-cards .dose strong{font-size:26px}
+  .medication-cards .dose span{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    font-size:11px;
+  }
+
+  .medication-cards .card-actions{
+    grid-column:3;
+    grid-row:3;
+    align-self:end;
+    width:auto;
+    margin-top:8px;
+    justify-content:flex-end;
+    gap:6px;
+  }
+  .medication-cards .card-actions>button:first-child{
+    min-width:88px;
+    padding:0 12px;
+    font-size:11px;
+    white-space:nowrap;
+  }
+
+  .medication-cards .med-card dl{
+    grid-column:1/4;
+    grid-row:4;
+    width:100%;
+    margin:10px 0 0;
+    padding-top:9px;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+  .medication-cards .med-card dl div{
+    min-width:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:2px;
+    font-size:10px;
+  }
+  .medication-cards .med-card dd{
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    text-align:left;
+    font-size:11px;
   }
 }
