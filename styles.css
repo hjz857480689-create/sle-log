@@ -107,6 +107,77 @@
   .profile-heading{margin-bottom:18px}
 }
 
+/* Developer profile sits between the account summary and personal settings. */
+.profile-sidebar{
+  position:sticky;
+  top:24px;
+  display:grid;
+  gap:16px;
+}
+.profile-sidebar .profile-summary{position:static}
+.developer-card{
+  display:grid;
+  grid-template-columns:72px minmax(0,1fr);
+  align-items:center;
+  gap:14px;
+  padding:16px;
+  text-align:left;
+}
+.developer-avatar{
+  width:72px;
+  height:72px;
+  border-radius:12px;
+  object-fit:cover;
+  background:var(--surface2);
+}
+.developer-content{
+  min-width:0;
+  height:72px;
+  display:grid;
+  grid-template-rows:auto auto auto;
+  align-content:space-between;
+}
+.developer-heading{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  min-width:0;
+}
+.developer-label{
+  flex:0 0 auto;
+  color:var(--text3);
+  font-size:14px;
+  font-weight:500;
+}
+.developer-content h2{margin:0;font-size:14px}
+.developer-content>p{
+  margin:0;
+  color:var(--text2);
+  font-size:11px;
+  line-height:1.35;
+  white-space:nowrap;
+}
+.developer-socials{min-width:0}
+.developer-socials span{
+  color:var(--text2);
+  font-size:10px;
+  white-space:nowrap;
+}
+
+@media(max-width:767px){
+  .profile-sidebar{position:static;gap:14px}
+  .developer-card{
+    grid-template-columns:76px minmax(0,1fr);
+    gap:16px;
+    padding:18px;
+  }
+  .developer-avatar{width:76px;height:76px}
+  .developer-content{height:76px}
+  .developer-label,.developer-content h2{font-size:14px}
+  .developer-content>p{font-size:12px}
+  .developer-socials span{font-size:11px}
+}
+
 /* Mobile history empty state: compact, calm and aligned with the content rhythm. */
 @media(max-width:767px){
   .history-table .empty-table-row{
@@ -920,6 +991,7 @@
 .medication-status-tabs button:active{transform:scale(.98)}
 .medication-status-tabs button:focus-visible{outline:2px solid var(--border-visible);outline-offset:2px}
 .med-card[hidden]{display:none!important}
+[data-med-task][hidden]{display:none!important}
 .medication-filter-empty{min-height:240px}
 
 @media(max-width:767px){
@@ -1339,6 +1411,12 @@
   }
 }
 
+/* Medication cards keep stage metadata for history and timeline logic, but the
+   summary row is intentionally hidden from the card surface. */
+.medication-cards .med-card dl{
+  display:none!important;
+}
+
 /* Keep medication history dense enough to scan without losing stage labels. */
 .timeline-row{
   min-height:48px;
@@ -1379,8 +1457,8 @@
   transition:border-color 160ms var(--ease),transform 160ms var(--ease);
 }
 .indicator-trend-card:hover{border-color:var(--border-visible)}
-.indicator-trend-card.status-success{--indicator-accent:#2f806a}
-.indicator-trend-card.status-warning{--indicator-accent:#6f96a9}
+.indicator-trend-card.status-success{--indicator-accent:#6483b4}
+.indicator-trend-card.status-warning{--indicator-accent:#2f806a}
 .indicator-trend-card.status-error{--indicator-accent:#b86558}
 .indicator-trend-card.status-neutral{--indicator-accent:var(--text3)}
 .indicator-card-summary{

@@ -263,7 +263,7 @@
     if (modalOpener?.dataset.openModal === "quickModal") { const form = document.querySelector("#quickForm"); form.elements.date.value = today(); window.SLEEntryDefaults?.applyQuickEntryDefaults(); }
     if (modalOpener?.dataset.openModal === "checkModal") { document.querySelector("#checkForm").elements.date.value = today(); window.SLEEntryDefaults?.applyCheckEntryDefaults(); }
     if (modalOpener?.dataset.openModal === "indicatorModal") document.querySelector("#indicatorForm").elements.category.value = currentCategory;
-    const passwordToggle = event.target.closest("[data-password-toggle]"); if (passwordToggle) { const input = passwordToggle.parentElement.querySelector("input"); const reveal = input.type === "password"; input.type = reveal ? "text" : "password"; passwordToggle.setAttribute("aria-pressed", String(reveal)); passwordToggle.setAttribute("aria-label", reveal ? "隐藏密码" : "显示密码"); passwordToggle.innerHTML = `<i data-lucide="${reveal ? "eye-off" : "eye"}"></i>`; if (window.lucide) lucide.createIcons(); input.focus(); return; }
+    const passwordToggle = event.target.closest("[data-password-toggle]"); if (passwordToggle) { const input = passwordToggle.parentElement.querySelector("input"); const reveal = input.type === "password"; input.type = reveal ? "text" : "password"; passwordToggle.setAttribute("aria-pressed", String(reveal)); passwordToggle.setAttribute("aria-label", reveal ? "隐藏密码" : "显示密码"); passwordToggle.innerHTML = `<i data-lucide="${reveal ? "eye" : "eye-off"}"></i>`; if (window.lucide) lucide.createIcons(); input.focus(); return; }
     const close = event.target.closest("[data-feature-close]"); if (close) { closeFeatureModal(close.closest(".modal")); return; }
     const authTarget = event.target.closest("[data-auth-target]"); if (authTarget) { switchAuthView(authTarget.dataset.authTarget); return; }
     const historyButton = event.target.closest("[data-history-action]"); if (historyButton) { handleHistoryAction(historyButton.dataset.historyAction, historyButton.dataset.recordDate, historyButton.dataset.indicatorRecord || currentIndicator); return; }
@@ -362,8 +362,8 @@
     }
     const form = document.querySelector("#accountEditForm"), fields = document.querySelector("#accountEditFields"), title = document.querySelector("#accountEditTitle"), description = document.querySelector("#accountEditDescription"); form.elements.type.value = action;
     if (action === "nickname") { title.textContent = "修改昵称"; description.textContent = "昵称只用于界面展示。"; fields.innerHTML = `<label><span>新昵称</span><input name="value" required value="${safeText(state.profile.nickname)}" /></label>`; }
-    if (action === "username") { title.textContent = "修改用户名"; description.textContent = "输入当前密码确认身份，下次将使用新用户名登录。"; fields.innerHTML = `<label><span>新用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required value="${safeText(state.profile.username)}" /></label><label><span>当前密码</span><div class="password-field"><input name="currentPassword" type="password" autocomplete="current-password" required placeholder="输入当前登录密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label>`; }
-    if (action === "password") { title.textContent = "修改登录密码"; description.textContent = "新密码需为 8–20 位，并同时包含字母和数字。"; fields.innerHTML = `<label><span>当前密码</span><div class="password-field"><input name="currentPassword" type="password" autocomplete="current-password" required placeholder="输入当前密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><label><span>新密码</span><div class="password-field"><input name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="8–20 位，包含字母和数字" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><label><span>确认新密码</span><div class="password-field"><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="再次输入新密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label>`; }
+    if (action === "username") { title.textContent = "修改用户名"; description.textContent = "输入当前密码确认身份，下次将使用新用户名登录。"; fields.innerHTML = `<label><span>新用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required value="${safeText(state.profile.username)}" /></label><label><span>当前密码</span><div class="password-field"><input name="currentPassword" type="password" autocomplete="current-password" required placeholder="输入当前登录密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label>`; }
+    if (action === "password") { title.textContent = "修改登录密码"; description.textContent = "新密码需为 8–20 位，并同时包含字母和数字。"; fields.innerHTML = `<label><span>当前密码</span><div class="password-field"><input name="currentPassword" type="password" autocomplete="current-password" required placeholder="输入当前密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label><label><span>新密码</span><div class="password-field"><input name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="8–20 位，包含字母和数字" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label><label><span>确认新密码</span><div class="password-field"><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="再次输入新密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label>`; }
     openFeatureModal("accountEditModal");
   }
   document.querySelector("#accountEditForm").addEventListener("submit", async event => {
@@ -848,6 +848,7 @@
     const log = state.medicationLogs[name] || {};
     const status = String(card.dataset.medicationEndDate || "").trim() ? "已停药" : log.status || "使用中";
     const isActive = status === "使用中", isPaused = status === "已暂停";
+    const supportsDoseAdjustment = ["longTerm", "biologic"].includes(card.dataset.medicationRecordType);
     const pauseButton = document.querySelector('[data-med-task="pause"], [data-med-task="resume"]');
     if (pauseButton) {
       pauseButton.dataset.medTask = isPaused ? "resume" : "pause";
@@ -858,7 +859,7 @@
     const adjustButton = document.querySelector('[data-med-task="adjust"]');
     const observationButton = document.querySelector('[data-med-task="observation"]');
     const stopButton = document.querySelector('[data-med-task="stop"]');
-    if (adjustButton) adjustButton.hidden = !isActive;
+    if (adjustButton) adjustButton.hidden = !isActive || !supportsDoseAdjustment;
     if (observationButton) observationButton.hidden = status === "已停药";
     if (stopButton) stopButton.hidden = status === "已停药";
   }

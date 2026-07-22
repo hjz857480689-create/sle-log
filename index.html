@@ -9,14 +9,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=20260721-release" />
+    <link rel="stylesheet" href="./styles.css?v=20260722-release" />
   </head>
   <body>
     <section class="auth-shell" id="authShell" hidden aria-label="账号登录">
       <div class="auth-brand"><span class="brand-mark" aria-hidden="true"><svg class="butterfly-logo" viewBox="0 0 32 32"><path d="M15 15.5C11.8 8.2 6.2 6 4.5 10.2C3 14 6.8 17.2 14.8 17Z"/><path d="M17 15.5C20.2 8.2 25.8 6 27.5 10.2C29 14 25.2 17.2 17.2 17Z"/><path d="M15 18C10.8 18.8 8.2 22.2 9.8 25.2C11.2 27.8 14.4 24.8 15.6 20Z"/><path d="M17 18C21.2 18.8 23.8 22.2 22.2 25.2C20.8 27.8 17.6 24.8 16.4 20Z"/><rect x="15" y="8" width="2" height="16" rx="1"/></svg></span><strong>SLE记录簿</strong><p>把每一次检查和治疗变化，留在同一条时间线上。</p><div class="auth-trust"><span><i data-lucide="shield-check"></i>个人数据隔离</span><span><i data-lucide="cloud"></i>多设备同步准备</span><span><i data-lucide="key-round"></i>密码登录保护</span></div></div>
       <div class="auth-panel">
-        <div class="auth-view is-active" data-auth-view="login"><p class="section-kicker">WELCOME BACK</p><h1>用户名密码登录</h1><p>输入用户名和密码，继续查看云端记录。</p><div class="auth-service-notice" data-auth-service-notice hidden role="status"></div><form id="loginForm"><label><span>用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required placeholder="输入用户名" /></label><label><span>密码</span><div class="password-field"><input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="20" required placeholder="输入登录密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><p class="form-error" data-form-error></p><button class="button primary auth-submit" type="submit">登录</button></form><p class="auth-switch">还没有账号？<button type="button" data-auth-target="register">注册账号</button></p></div>
-        <div class="auth-view" data-auth-view="register"><button class="auth-back" type="button" data-auth-target="login"><i data-lucide="arrow-left"></i>返回登录</button><p class="section-kicker">CREATE ACCOUNT</p><h1>用户名注册</h1><p>使用用户名和密码建立个人疾病管理空间。</p><form id="registerForm"><label><span>用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required placeholder="3–20 位中文、字母、数字或下划线" /></label><label><span>设置密码</span><div class="password-field"><input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="8–20 位，包含字母和数字" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><label><span>确认密码</span><div class="password-field"><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="再次输入密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye"></i></button></div></label><label class="consent-check"><input name="consent" type="checkbox" required /><span>我已阅读并同意服务协议与隐私政策</span></label><p class="form-error" data-form-error></p><button class="button primary auth-submit" type="submit">注册并登录</button></form></div>
+        <div class="auth-view is-active" data-auth-view="login"><p class="section-kicker">WELCOME BACK</p><h1>用户名密码登录</h1><p>输入用户名和密码，继续查看云端记录。</p><div class="auth-service-notice" data-auth-service-notice hidden role="status"></div><form id="loginForm"><label><span>用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required placeholder="输入用户名" /></label><label><span>密码</span><div class="password-field"><input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="20" required placeholder="输入登录密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label><p class="form-error" data-form-error></p><button class="button primary auth-submit" type="submit">登录</button></form><p class="auth-switch">还没有账号？<button type="button" data-auth-target="register">注册账号</button></p></div>
+        <div class="auth-view" data-auth-view="register"><button class="auth-back" type="button" data-auth-target="login"><i data-lucide="arrow-left"></i>返回登录</button><p class="section-kicker">CREATE ACCOUNT</p><h1>用户名注册</h1><p>使用用户名和密码建立个人疾病管理空间。</p><form id="registerForm"><label><span>用户名</span><input name="username" type="text" autocomplete="username" minlength="3" maxlength="20" required placeholder="3–20 位中文、字母、数字或下划线" /></label><label><span>设置密码</span><div class="password-field"><input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="8–20 位，包含字母和数字" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label><label><span>确认密码</span><div class="password-field"><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="20" required placeholder="再次输入密码" /><button type="button" data-password-toggle aria-label="显示密码" aria-pressed="false"><i data-lucide="eye-off"></i></button></div></label><label class="consent-check"><input name="consent" type="checkbox" required /><span>我已阅读并同意服务协议与隐私政策</span></label><p class="form-error" data-form-error></p><button class="button primary auth-submit" type="submit">注册并登录</button></form></div>
       </div>
     </section>
 
@@ -175,7 +175,22 @@
             <div><p class="eyebrow">ACCOUNT & DATA</p><h1>我的</h1><p>管理账号、同步状态和属于你的全部疾病记录。</p></div>
           </div>
           <div class="profile-layout">
-            <aside class="profile-summary panda-card"><div class="profile-avatar" data-profile-avatar>锦</div><h2 data-profile-nickname>韩锦泽</h2><p data-profile-username>hanjinze</p><span class="status-badge neutral"><i data-lucide="shield-check"></i>用户名密码账号</span><dl><div><dt>加入时间</dt><dd data-profile-created>2024.08.16</dd></div><div><dt>已记录</dt><dd data-profile-summary>36 项检查 · 7 种药物</dd></div></dl></aside>
+            <div class="profile-sidebar">
+              <aside class="profile-summary panda-card"><div class="profile-avatar" data-profile-avatar>锦</div><h2 data-profile-nickname>韩锦泽</h2><p data-profile-username>hanjinze</p><span class="status-badge neutral"><i data-lucide="shield-check"></i>用户名密码账号</span><dl><div><dt>加入时间</dt><dd data-profile-created>2024.08.16</dd></div><div><dt>已记录</dt><dd data-profile-summary>36 项检查 · 7 种药物</dd></div></dl></aside>
+              <article class="developer-card panda-card" aria-labelledby="developerName">
+                <img class="developer-avatar" src="./assets/developer-dalangshaonv.jpg" alt="打狼少女头像" width="1080" height="1080" loading="lazy" />
+                <div class="developer-content">
+                  <div class="developer-heading">
+                    <span class="developer-label">开发者</span>
+                    <h2 id="developerName">打狼少女</h2>
+                  </div>
+                  <p>17年狼疮患者、狼疮自媒体博主</p>
+                  <div class="developer-socials" aria-label="开发者社交账号">
+                    <span>抖音小红书号同名：打狼少女，欢迎关注交流病情</span>
+                  </div>
+                </div>
+              </article>
+            </div>
             <div class="settings-sections">
               <section class="settings-group"><div class="settings-title"><p class="section-kicker">PROFILE</p><h2>个人信息</h2></div><div class="setting-row"><span><strong>昵称</strong><small>用于界面中的称呼</small></span><span data-profile-nickname>韩锦泽</span><button data-account-action="nickname">修改</button></div><div class="setting-row"><span><strong>用户名</strong><small>用于账号登录</small></span><span data-profile-username>hanjinze</span><button data-account-action="username">修改</button></div><div class="setting-row"><span><strong>登录密码</strong><small>建议定期更换密码</small></span><span>已设置</span><button data-account-action="password">修改</button></div><div class="setting-row"><span><strong>登录方式</strong><small>使用用户名和密码验证身份</small></span><span>用户名 + 密码</span></div></section>
               <section class="settings-group"><div class="settings-title"><p class="section-kicker">SYNC</p><h2>云端同步</h2></div><div class="sync-panel"><span class="sync-icon"><i data-lucide="cloud"></i></span><div><strong id="syncTitle">全部数据已同步</strong><small id="syncDescription">最近同步于今天 09:42 · 当前网络正常</small></div><button class="button secondary" id="manualSyncButton"><i data-lucide="refresh-cw"></i>重新同步</button></div></section>
@@ -330,9 +345,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./supabase-config.js?v=20260717-supabase"></script>
     <script src="./supabase-client.js?v=20260717-username-auth"></script>
-    <script src="./app.js?v=20260721-release"></script>
+    <script src="./app.js?v=20260722-release"></script>
     <script type="module" src="./vendor/xlsx-browser-init.mjs?v=20260721"></script>
-    <script src="./features.js?v=20260721-release"></script>
-    <script src="./controls.js?v=20260721-release"></script>
+    <script src="./features.js?v=20260722-release"></script>
+    <script src="./controls.js?v=20260722-release"></script>
   </body>
 </html>
