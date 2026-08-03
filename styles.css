@@ -132,7 +132,7 @@
 }
 .developer-content{
   min-width:0;
-  height:72px;
+  min-height:72px;
   display:grid;
   grid-template-rows:auto auto auto;
   align-content:space-between;
@@ -157,11 +157,18 @@
   line-height:1.35;
   white-space:nowrap;
 }
-.developer-socials{min-width:0}
+.developer-socials{
+  min-width:0;
+  max-width:100%;
+}
 .developer-socials span{
+  display:block;
+  max-width:100%;
   color:var(--text2);
   font-size:10px;
-  white-space:nowrap;
+  line-height:1.35;
+  white-space:normal;
+  overflow-wrap:anywhere;
 }
 
 @media(max-width:767px){
@@ -172,7 +179,7 @@
     padding:18px;
   }
   .developer-avatar{width:76px;height:76px}
-  .developer-content{height:76px}
+  .developer-content{min-height:76px}
   .developer-label,.developer-content h2{font-size:14px}
   .developer-content>p{font-size:12px}
   .developer-socials span{font-size:11px}
@@ -1444,9 +1451,49 @@
   gap:12px;
   margin:20px 0 18px;
 }
+.indicator-list-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.category-manage-button{height:40px;padding:0 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface1);color:var(--text2);display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11px;font-weight:500;transition:background 160ms var(--ease),border-color 160ms var(--ease),color 160ms var(--ease),transform 160ms var(--ease)}
+.category-manage-button:hover{border-color:var(--border-visible);background:var(--surface2);color:var(--text1)}
+.category-manage-button:active{transform:scale(.98)}
+.category-manage-button svg{width:14px;height:14px}
+.indicator-manager-panel{overflow-x:hidden}
+.indicator-manager-meta{margin:-8px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.indicator-manager-meta strong{font-size:11px}
+.indicator-manager-meta small{color:var(--text3);font-size:9px;text-align:right}
+.indicator-manager-list{display:flex;flex-direction:column;gap:7px}
+.indicator-manager-item{min-height:62px;padding:7px 7px 7px 5px;border:1px solid var(--border);border-radius:11px;background:var(--surface1);display:grid;grid-template-columns:40px minmax(0,1fr) 40px;align-items:center;gap:8px;transition:background 140ms var(--ease),border-color 140ms var(--ease),transform 140ms var(--ease),opacity 140ms var(--ease)}
+.indicator-manager-item:hover{border-color:var(--border-visible);background:var(--surface3)}
+.indicator-manager-item.is-dragging{position:relative;z-index:2;border-color:var(--text1);background:var(--surface2);box-shadow:var(--shadow-2);opacity:.82;transform:scale(.985);pointer-events:none}
+.indicator-manager-item>span,.indicator-manager-hidden-item>span,.indicator-manager-create>span{min-width:0;display:flex;flex-direction:column;text-align:left}
+.indicator-manager-item strong,.indicator-manager-hidden-item strong,.indicator-manager-create strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.indicator-manager-item small,.indicator-manager-hidden-item small,.indicator-manager-create small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text3);font-size:10px}
+.indicator-drag-handle,.indicator-manager-remove{width:40px;height:40px;border:0;border-radius:8px;background:transparent;color:var(--text3);display:grid;place-items:center;touch-action:none;cursor:grab}
+.indicator-drag-handle:active{cursor:grabbing}
+.indicator-drag-handle:hover{background:var(--surface2);color:var(--text1)}
+.indicator-manager-remove{color:var(--text3);cursor:pointer}
+.indicator-manager-remove:hover{background:var(--error-bg);color:var(--error)}
+.indicator-drag-handle svg,.indicator-manager-remove svg{width:16px;height:16px}
+.indicator-manager-empty{min-height:150px;border:1px dashed var(--border-visible);border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);text-align:center}
+.indicator-manager-empty svg{width:20px;height:20px;margin-bottom:8px}
+.indicator-manager-empty strong{color:var(--text1);font-size:12px}
+.indicator-manager-empty small{margin-top:2px;font-size:10px}
+.indicator-manager-library{margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+.indicator-manager-library[hidden]{display:none}
+.indicator-manager-library>div:first-child{margin-bottom:8px;display:flex;align-items:baseline;justify-content:space-between}
+.indicator-manager-library>div:first-child strong{font-size:11px}
+.indicator-manager-library>div:first-child small{color:var(--text3);font-size:9px}
+#indicatorManagerHiddenList{display:flex;flex-direction:column;gap:6px}
+.indicator-manager-hidden-item{min-height:54px;padding:6px 7px 6px 12px;border-radius:10px;background:var(--surface2);display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+.indicator-manager-hidden-item button{height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface1);display:inline-flex;align-items:center;gap:5px;font-size:10px}
+.indicator-manager-hidden-item button:hover{border-color:var(--border-visible)}
+.indicator-manager-hidden-item button svg{width:13px;height:13px}
+.indicator-manager-create{width:100%;min-height:60px;margin-top:12px;padding:8px 10px;border:1px dashed var(--border-visible);border-radius:11px;background:transparent;display:grid;grid-template-columns:32px minmax(0,1fr) 20px;align-items:center;gap:8px;color:var(--text2)}
+.indicator-manager-create:hover{background:var(--surface2);color:var(--text1)}
+.indicator-manager-create>svg:first-child{width:16px;height:16px;justify-self:center}
+.indicator-manager-create>svg:last-child{width:14px;height:14px;color:var(--text3)}
+.indicator-manager-actions{margin-top:18px}
 .indicator-range-control{flex:0 1 460px;height:40px}
 .indicator-range-control button{flex:1;min-width:88px;font-size:12px}
-.list-add-indicator{width:40px;height:40px;margin-left:auto;padding:0;justify-content:center}
 .indicator-trend-list{display:grid;gap:14px}
 .indicator-trend-card{
   --indicator-accent:#111;
@@ -1550,11 +1597,12 @@
 .indicator-list-empty small{margin-top:3px;font-size:11px}
 
 @media(max-width:767px){
+  .category-manage-button{width:44px;height:44px;padding:0}
+  .category-manage-button span{display:none}
+  .category-manage-button svg{width:16px;height:16px}
   .indicator-list-controls{margin:14px 0 12px;gap:8px}
   .indicator-range-control{min-width:0;flex:1;height:44px}
   .indicator-range-control button{min-width:0;height:36px;padding:0 8px;font-size:12px;white-space:nowrap}
-  .list-add-indicator{flex:0 0 44px;width:44px;height:44px;margin:0}
-  .list-add-indicator span{display:none}
   .indicator-trend-list{gap:10px}
   .indicator-trend-card{border-radius:14px}
   .indicator-card-summary{gap:12px;padding:17px 16px 2px}
@@ -1581,6 +1629,12 @@
   .indicator-record-actions .icon-button{width:30px;height:30px}
   .indicator-history-pagination button{min-width:44px;min-height:40px}
   .indicator-history-pagination button span{display:none}
+  .indicator-manager-meta{align-items:flex-start;flex-direction:column;gap:2px}
+  .indicator-manager-meta small{text-align:left}
+  .indicator-manager-item{min-height:66px;grid-template-columns:44px minmax(0,1fr) 44px;padding-inline:3px}
+  .indicator-drag-handle,.indicator-manager-remove{width:44px;height:44px}
+  .indicator-manager-create{min-height:64px}
+  .indicator-manager-actions .button{width:100%}
 }
 
 .urine-volume-fields,.lab-entry-companion{border:1px solid var(--border);border-radius:12px;background:var(--surface3)}

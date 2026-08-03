@@ -141,6 +141,9 @@
     <div class="modal compact-modal" id="indicatorSettingsModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="indicatorSettingsTitle">
       <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact"><div class="modal-header"><div><p class="section-kicker">INDICATOR SETTINGS</p><h2 id="indicatorSettingsTitle">指标设置</h2><p>默认设置只影响之后录入的数据，不改变历史记录。</p></div><button class="icon-button" data-feature-close aria-label="关闭"><i data-lucide="x"></i></button></div><form id="indicatorSettingsForm"><div class="form-grid one-column"><label><span>指标名称</span><input name="name" required /></label><label><span>指标简称</span><input name="shortName" /></label><label><span>默认单位</span><input name="unit" /></label><div class="inline-fields"><label><span>默认参考下限</span><input name="low" type="number" step="0.001" /></label><label><span>默认参考上限</span><input name="high" type="number" step="0.001" /></label></div></div><div class="indicator-order-actions"><button type="button" data-order-action="left"><i data-lucide="arrow-left"></i>向前移动</button><button type="button" data-order-action="right">向后移动<i data-lucide="arrow-right"></i></button></div><div class="modal-actions"><button class="button secondary" type="button" id="hideIndicatorButton">隐藏指标</button><button class="button primary" type="submit">保存设置</button></div></form></div>
     </div>
+    <div class="modal compact-modal" id="indicatorManagerModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="indicatorManagerTitle">
+      <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact indicator-manager-panel"><div class="modal-header"><div><p class="section-kicker">CATEGORY INDICATORS</p><h2 id="indicatorManagerTitle">管理分类指标</h2><p>拖动调整上下顺序；移除后仍会保留历史数据。</p></div><button class="icon-button" data-feature-close aria-label="关闭"><i data-lucide="x"></i></button></div><div class="indicator-manager-meta"><strong id="indicatorManagerCount">0 个正在显示</strong><small>按住左侧拖动柄排序，也可使用上下方向键</small></div><div class="indicator-manager-list" id="indicatorManagerList" role="list"></div><section class="indicator-manager-library" id="indicatorManagerLibrary" hidden><div><strong>可添加指标</strong><small>此前移除的指标</small></div><div id="indicatorManagerHiddenList"></div></section><button type="button" class="indicator-manager-create" id="indicatorManagerCreate"><i data-lucide="plus"></i><span><strong>新建自定义指标</strong><small>名称、单位和参考范围均可自定义</small></span><i data-lucide="arrow-up-right"></i></button><p class="sr-only" id="indicatorManagerStatus" aria-live="polite"></p><div class="modal-actions indicator-manager-actions"><button class="button primary" type="button" data-feature-close>完成</button></div></div>
+    </div>
     <div class="modal compact-modal" id="accountEditModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="accountEditTitle">
       <div class="modal-backdrop" data-feature-close></div><div class="modal-panel compact"><div class="modal-header"><div><p class="section-kicker">ACCOUNT SETTINGS</p><h2 id="accountEditTitle">修改账号信息</h2><p id="accountEditDescription"></p></div><button class="icon-button" data-feature-close aria-label="关闭"><i data-lucide="x"></i></button></div><form id="accountEditForm"><input type="hidden" name="type" /><div class="form-grid one-column" id="accountEditFields"></div><p class="form-error" data-account-error></p><div class="modal-actions"><button class="button secondary" type="button" data-feature-close>取消</button><button class="button primary" type="submit">保存修改</button></div></form></div>
     </div>
@@ -175,6 +178,64 @@
     if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify(state));
     else if (cloud?.configured && cloudUser) cloud.queueSave(state);
     updateProfileUI();
+  }
+  function reorderIndicatorCategory(category, visibleKeys) {
+    const items = indicatorData[category]?.items;
+    if (!items) return;
+    const entries = Object.entries(items), byKey = new Map(entries), used = new Set();
+    const orderedVisible = visibleKeys.filter(key => byKey.has(key) && !byKey.get(key).isHidden).map(key => { used.add(key); return [key, byKey.get(key)]; });
+    const remainingVisible = entries.filter(([key, item]) => !item.isHidden && !used.has(key));
+    const hidden = entries.filter(([, item]) => item.isHidden);
+    indicatorData[category].items = Object.fromEntries([...orderedVisible, ...remainingVisible, ...hidden]);
+  }
+  function renderIndicatorManager(focusKey = "") {
+    const category = indicatorData[currentCategory], list = document.querySelector("#indicatorManagerList"), hiddenList = document.querySelector("#indicatorManagerHiddenList"), library = document.querySelector("#indicatorManagerLibrary");
+    if (!category || !list || !hiddenList || !library) return;
+    const entries = Object.entries(category.items), visible = entries.filter(([, item]) => !item.isHidden), hidden = entries.filter(([, item]) => item.isHidden);
+    document.querySelector("#indicatorManagerTitle").textContent = `管理${category.label}`;
+    document.querySelector("#indicatorManagerCount").textContent = `${visible.length} 个正在显示`;
+    list.innerHTML = visible.length ? visible.map(([key, item]) => `<article class="indicator-manager-item" data-manager-key="${safeText(key)}" role="listitem"><button type="button" class="indicator-drag-handle" data-indicator-drag-handle aria-label="拖动调整 ${safeText(item.name)} 的顺序" title="拖动排序；也可使用上下方向键"><i data-lucide="grip-vertical"></i></button><span><strong>${safeText(item.short)}</strong><small>${safeText(item.name)} · ${safeText(item.unit || "未设置单位")}</small></span><button type="button" class="indicator-manager-remove" data-manager-remove="${safeText(key)}" aria-label="从${safeText(category.label)}移除 ${safeText(item.name)}" title="从分类中移除"><i data-lucide="trash-2"></i></button></article>`).join("") : `<div class="indicator-manager-empty"><i data-lucide="list-plus"></i><strong>这个分类还没有指标</strong><small>从下方恢复指标，或新建一个自定义指标。</small></div>`;
+    library.hidden = !hidden.length;
+    hiddenList.innerHTML = hidden.map(([key, item]) => `<div class="indicator-manager-hidden-item"><span><strong>${safeText(item.short)}</strong><small>${safeText(item.name)} · ${safeText(item.unit || "未设置单位")}</small></span><button type="button" data-manager-restore="${safeText(key)}"><i data-lucide="plus"></i>添加</button></div>`).join("");
+    if (window.lucide) lucide.createIcons();
+    if (focusKey) requestAnimationFrame(() => document.querySelector(`[data-manager-key="${CSS.escape(focusKey)}"] [data-indicator-drag-handle]`)?.focus());
+  }
+  function saveIndicatorManagerOrder({ announce = false, focusKey = "" } = {}) {
+    const keys = [...document.querySelectorAll("#indicatorManagerList [data-manager-key]")].map(row => row.dataset.managerKey);
+    reorderIndicatorCategory(currentCategory, keys);
+    if (!keys.includes(currentIndicator)) currentIndicator = keys[0];
+    renderIndicator();
+    persist();
+    renderIndicatorManager(focusKey);
+    if (announce) {
+      const status = document.querySelector("#indicatorManagerStatus");
+      if (status) status.textContent = "指标显示顺序已更新";
+      showToast("顺序已更新", "当前分类会按新的上下顺序显示");
+    }
+  }
+  function removeManagedIndicator(key) {
+    const item = indicatorData[currentCategory]?.items?.[key];
+    if (!item) return;
+    item.isHidden = true;
+    const visibleKeys = Object.entries(indicatorData[currentCategory].items).filter(([, value]) => !value.isHidden).map(([visibleKey]) => visibleKey);
+    reorderIndicatorCategory(currentCategory, visibleKeys);
+    if (currentIndicator === key) currentIndicator = visibleKeys[0];
+    renderIndicator();
+    persist();
+    renderIndicatorManager();
+    showToast("指标已移除", `${item.short} 的历史数据仍然保留，可随时重新添加`);
+  }
+  function restoreManagedIndicator(key) {
+    const item = indicatorData[currentCategory]?.items?.[key];
+    if (!item) return;
+    item.isHidden = false;
+    const visibleKeys = Object.entries(indicatorData[currentCategory].items).filter(([visibleKey, value]) => !value.isHidden && visibleKey !== key).map(([visibleKey]) => visibleKey);
+    reorderIndicatorCategory(currentCategory, [...visibleKeys, key]);
+    if (!currentIndicator) currentIndicator = key;
+    renderIndicator();
+    persist();
+    renderIndicatorManager(key);
+    showToast("指标已添加", `${item.short} 已添加到${indicatorData[currentCategory].label}`);
   }
   function setSyncStatus(title, description, mode = "ready") {
     const syncTitle = document.querySelector("#syncTitle");
@@ -259,10 +320,14 @@
     const timelineZoomButton = event.target.closest("[data-timeline-zoom-step]"); if (timelineZoomButton) { changeTimelineZoom(Number(timelineZoomButton.dataset.timelineZoomStep)); return; }
     const timelineFitButton = event.target.closest("[data-timeline-fit]"); if (timelineFitButton) { fitMedicationTimeline(); return; }
     const timelineStage = event.target.closest(".timeline-stage"); if (timelineStage) { const timeline = timelineStage.closest(".timeline-scroll"); if (timeline?.dataset.dragged === "true") { timeline.dataset.dragged = "false"; return; } const row = timelineStage.closest(".timeline-row"), detail = timelineStage.dataset.detail || timelineStage.title; showToast(row?.dataset.medicationName || "用药阶段", detail); return; }
+    const managerOpener = event.target.closest("#manageCategoryIndicators"); if (managerOpener) { renderIndicatorManager(); openFeatureModal("indicatorManagerModal"); return; }
+    const managerRemove = event.target.closest("[data-manager-remove]"); if (managerRemove) { removeManagedIndicator(managerRemove.dataset.managerRemove); return; }
+    const managerRestore = event.target.closest("[data-manager-restore]"); if (managerRestore) { restoreManagedIndicator(managerRestore.dataset.managerRestore); return; }
+    const managerCreate = event.target.closest("#indicatorManagerCreate"); if (managerCreate) { closeFeatureModal(document.querySelector("#indicatorManagerModal")); const form = document.querySelector("#indicatorForm"), category = form.elements.category; category.value = currentCategory; category.dispatchEvent(new Event("change", { bubbles: true })); closeModal(document.querySelector("#indicatorModal")); openModal("indicatorModal"); form.elements.name.focus(); return; }
     const modalOpener = event.target.closest("[data-open-modal]");
     if (modalOpener?.dataset.openModal === "quickModal") { const form = document.querySelector("#quickForm"); form.elements.date.value = today(); window.SLEEntryDefaults?.applyQuickEntryDefaults(); }
     if (modalOpener?.dataset.openModal === "checkModal") { document.querySelector("#checkForm").elements.date.value = today(); window.SLEEntryDefaults?.applyCheckEntryDefaults(); }
-    if (modalOpener?.dataset.openModal === "indicatorModal") document.querySelector("#indicatorForm").elements.category.value = currentCategory;
+    if (modalOpener?.dataset.openModal === "indicatorModal") { const category = document.querySelector("#indicatorForm").elements.category; category.value = currentCategory; category.dispatchEvent(new Event("change", { bubbles: true })); }
     const passwordToggle = event.target.closest("[data-password-toggle]"); if (passwordToggle) { const input = passwordToggle.parentElement.querySelector("input"); const reveal = input.type === "password"; input.type = reveal ? "text" : "password"; passwordToggle.setAttribute("aria-pressed", String(reveal)); passwordToggle.setAttribute("aria-label", reveal ? "隐藏密码" : "显示密码"); passwordToggle.innerHTML = `<i data-lucide="${reveal ? "eye" : "eye-off"}"></i>`; if (window.lucide) lucide.createIcons(); input.focus(); return; }
     const close = event.target.closest("[data-feature-close]"); if (close) { closeFeatureModal(close.closest(".modal")); return; }
     const authTarget = event.target.closest("[data-auth-target]"); if (authTarget) { switchAuthView(authTarget.dataset.authTarget); return; }
@@ -275,6 +340,45 @@
     const medTask = event.target.closest("[data-med-task]"); if (medTask) { openMedicationTask(medTask.dataset.medTask, selectedMedication); return; }
     const timelineFilter = event.target.closest(".timeline-filter button"); if (timelineFilter) { currentTimelineFilter = timelineFilter.textContent.trim(); timelineFilter.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineFilter)); applyTimelineFilter(); }
     const timelineRange = event.target.closest(".timeline-range-control button"); if (timelineRange) { currentTimelineRange = timelineRange.textContent.trim(); timelineRange.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineRange)); renderMedicationTimeline(); }
+  });
+
+  let indicatorDrag = null;
+  document.addEventListener("pointerdown", event => {
+    const handle = event.target.closest("[data-indicator-drag-handle]");
+    if (!handle || event.button !== 0) return;
+    const row = handle.closest("[data-manager-key]");
+    indicatorDrag = { pointerId: event.pointerId, handle, row, startX: event.clientX, startY: event.clientY, active: false };
+    handle.setPointerCapture?.(event.pointerId);
+  });
+  document.addEventListener("pointermove", event => {
+    if (!indicatorDrag || indicatorDrag.pointerId !== event.pointerId) return;
+    if (!indicatorDrag.active && Math.hypot(event.clientX - indicatorDrag.startX, event.clientY - indicatorDrag.startY) < 6) return;
+    event.preventDefault();
+    indicatorDrag.active = true;
+    indicatorDrag.row.classList.add("is-dragging");
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("#indicatorManagerList [data-manager-key]");
+    if (!target || target === indicatorDrag.row) return;
+    const rect = target.getBoundingClientRect(), before = event.clientY < rect.top + rect.height / 2;
+    target.parentElement.insertBefore(indicatorDrag.row, before ? target : target.nextSibling);
+  }, { passive: false });
+  const finishIndicatorDrag = event => {
+    if (!indicatorDrag || indicatorDrag.pointerId !== event.pointerId) return;
+    const { active, row, handle, pointerId } = indicatorDrag;
+    row.classList.remove("is-dragging");
+    if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId);
+    indicatorDrag = null;
+    if (active) saveIndicatorManagerOrder({ announce: true, focusKey: row.dataset.managerKey });
+  };
+  document.addEventListener("pointerup", finishIndicatorDrag);
+  document.addEventListener("pointercancel", finishIndicatorDrag);
+  document.addEventListener("keydown", event => {
+    const handle = event.target.closest?.("[data-indicator-drag-handle]");
+    if (!handle || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const row = handle.closest("[data-manager-key]"), sibling = event.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling?.matches?.("[data-manager-key]")) { showToast("无法继续移动", event.key === "ArrowUp" ? "已经位于最上方" : "已经位于最下方"); return; }
+    row.parentElement.insertBefore(row, event.key === "ArrowUp" ? sibling : sibling.nextSibling);
+    saveIndicatorManagerOrder({ announce: true, focusKey: row.dataset.managerKey });
   });
 
   document.querySelector("#confirmActionButton").addEventListener("click", () => { const action = pendingConfirm; pendingConfirm = null; closeFeatureModal(document.querySelector("#confirmModal")); if (action) action(); });

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=20260722-release" />
+    <link rel="stylesheet" href="./styles.css?v=20260803-indicator-manager-no-add" />
   </head>
   <body>
     <section class="auth-shell" id="authShell" hidden aria-label="账号登录">
@@ -89,7 +89,9 @@
               <button type="button" data-category-range="3y">3 年</button>
               <button type="button" data-category-range="all">全部</button>
             </div>
-            <button class="add-indicator list-add-indicator" data-open-modal="indicatorModal" aria-label="添加指标"><i data-lucide="plus"></i><span>添加指标</span></button>
+            <div class="indicator-list-actions">
+              <button type="button" class="category-manage-button" id="manageCategoryIndicators" aria-haspopup="dialog" aria-label="管理当前分类指标"><i data-lucide="sliders-horizontal"></i><span>管理</span></button>
+            </div>
           </div>
 
           <section class="indicator-trend-list" id="indicatorTrendList" aria-live="polite"></section>
@@ -347,7 +349,7 @@
     <script src="./supabase-client.js?v=20260717-username-auth"></script>
     <script src="./app.js?v=20260722-release"></script>
     <script type="module" src="./vendor/xlsx-browser-init.mjs?v=20260721"></script>
-    <script src="./features.js?v=20260722-release"></script>
+    <script src="./features.js?v=20260803-indicator-manager"></script>
     <script src="./controls.js?v=20260722-release"></script>
   </body>
 </html>
