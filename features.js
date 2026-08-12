@@ -155,7 +155,7 @@
     </div>
   `);
   document.querySelector(".med-action-list").insertAdjacentHTML("beforeend", `<button class="danger-action" data-med-task="delete"><i data-lucide="trash-2"></i><span><strong>删除用药</strong><small>删除错误添加的药品及其全部记录</small></span><i data-lucide="chevron-right"></i></button>`);
-  document.querySelector('[data-med-task="details"]').insertAdjacentHTML("afterend", `<button data-med-task="color"><i data-lucide="palette"></i><span><strong>修改标识颜色</strong><small>同步更新药品卡片与历年用药时间轴</small></span><i data-lucide="chevron-right"></i></button>`);
+  document.querySelector('[data-med-task="details"]').insertAdjacentHTML("afterend", `<button data-med-task="history"><i data-lucide="file-pen-line"></i><span><strong>修改历史用药</strong><small>编辑或删除原有阶段与给药记录</small></span><i data-lucide="chevron-right"></i></button><button data-med-task="color"><i data-lucide="palette"></i><span><strong>修改标识颜色</strong><small>同步更新药品卡片与历年用药时间轴</small></span><i data-lucide="chevron-right"></i></button>`);
 
   let pendingConfirm = null;
   let selectedMedication = "";
@@ -174,6 +174,8 @@
   function persist() {
     state.indicators = clone(indicatorData);
     renderMedicationTimeline();
+    ensureMedicationDoseCharts();
+    document.querySelectorAll(".med-card.is-dose-expanded").forEach(renderMedicationDoseChart);
     window.renderIndicatorList?.();
     if (isLocalDemo) localStorage.setItem(STATE_KEY, JSON.stringify(state));
     else if (cloud?.configured && cloudUser) cloud.queueSave(state);
@@ -258,6 +260,12 @@
     pendingConfirm = action;
     openFeatureModal("confirmModal");
   }
+  function runPendingConfirm() {
+    const action = pendingConfirm;
+    pendingConfirm = null;
+    closeFeatureModal(document.querySelector("#confirmModal"));
+    if (action) action();
+  }
   function downloadFile(filename, content, type) { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
   function updateProfileUI() {
@@ -315,6 +323,7 @@
   window.addEventListener("sle:medication-added", event => { const record = event.detail; state.addedMedicationRecords.push(record); state.deletedMedicationNames = state.deletedMedicationNames.filter(name => name !== record.name); state.medicationsCleared = false; const initialStatus = String(record.endDate || "").trim() ? "已停药" : "使用中"; const log = state.medicationLogs[record.name] ||= { status: initialStatus, stages: [], administrations: [], observations: [] }; if (["longTerm", "biologic"].includes(record.recordType)) { log.status = initialStatus; log.stages.push({ date: record.startDate, endDate: record.endDate, type: "开始用药", brand: record.brand, dose: record.dose, unit: record.unit, frequency: record.frequency, route: record.route, instruction: record.instruction, reason: record.purpose, notes: record.notes }); } refreshMedicationCardStates(); persist(); });
 
   document.addEventListener("click", event => {
+    const confirmButton = event.target.closest("#confirmActionButton"); if (confirmButton) { runPendingConfirm(); return; }
     const medicationViewButton = event.target.closest('[data-view="medications"]'); if (medicationViewButton) setTimeout(() => renderMedicationTimeline(), 0);
     const timelineExpandButton = event.target.closest(".timeline-expand-button"); if (timelineExpandButton) { toggleTimelineExpanded(); return; }
     const timelineZoomButton = event.target.closest("[data-timeline-zoom-step]"); if (timelineZoomButton) { changeTimelineZoom(Number(timelineZoomButton.dataset.timelineZoomStep)); return; }
@@ -336,11 +345,69 @@
     const dataButton = event.target.closest("[data-data-action]"); if (dataButton) { handleDataAction(dataButton.dataset.dataAction); return; }
     const orderButton = event.target.closest("[data-order-action]"); if (orderButton) { moveIndicator(orderButton.dataset.orderAction); return; }
     const medicationFilter = event.target.closest("[data-medication-filter]"); if (medicationFilter) { currentMedicationFilter = medicationFilter.dataset.medicationFilter; document.querySelectorAll("[data-medication-filter]").forEach(button => { const active = button === medicationFilter; button.classList.toggle("is-active", active); button.setAttribute("aria-selected", String(active)); }); applyMedicationFilter(); return; }
+    const doseToggle = event.target.closest(".med-dose-toggle"); if (doseToggle) { toggleMedicationDoseChart(doseToggle); return; }
+    const doseZoomOut = event.target.closest("[data-dose-zoom-out]"); if (doseZoomOut) { const card = doseZoomOut.closest(".med-card"); setMedicationDoseZoom(card, (Number(card.dataset.doseChartZoom) || 1) - .5); return; }
+    const doseZoomIn = event.target.closest("[data-dose-zoom-in]"); if (doseZoomIn) { const card = doseZoomIn.closest(".med-card"); setMedicationDoseZoom(card, (Number(card.dataset.doseChartZoom) || 1) + .5); return; }
+    const dosePoint = event.target.closest(".med-dose-point"); if (dosePoint) { const gesture = doseChartGestures.get(dosePoint.closest(".med-dose-chart-viewport")), chart = dosePoint.closest(".med-dose-chart"), tooltip = chart.querySelector(".med-dose-tooltip"), wasPinned = tooltip.classList.contains("is-pinned") && dosePoint.classList.contains("is-active"); if (!gesture?.moved) { if (wasPinned) hideMedicationDoseTooltip(chart, true); else showMedicationDoseTooltip(dosePoint, true); } return; }
+    const historyReturn = event.target.closest("[data-return-medication-history]"); if (historyReturn) { openMedicationTask("history", selectedMedication); return; }
+    const historyEdit = event.target.closest("[data-med-history-edit]"); if (historyEdit) { openMedicationHistoryEditor(selectedMedication, historyEdit.dataset.historyKind, Number(historyEdit.dataset.historyIndex)); return; }
+    const historyDelete = event.target.closest("[data-med-history-delete]"); if (historyDelete) { deleteMedicationHistoryRecord(selectedMedication, historyDelete.dataset.historyKind, Number(historyDelete.dataset.historyIndex)); return; }
     const medButton = event.target.closest(".med-card button"); if (medButton) { handleMedicationCardButton(medButton); return; }
     const medTask = event.target.closest("[data-med-task]"); if (medTask) { openMedicationTask(medTask.dataset.medTask, selectedMedication); return; }
     const timelineFilter = event.target.closest(".timeline-filter button"); if (timelineFilter) { currentTimelineFilter = timelineFilter.textContent.trim(); timelineFilter.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineFilter)); applyTimelineFilter(); }
     const timelineRange = event.target.closest(".timeline-range-control button"); if (timelineRange) { currentTimelineRange = timelineRange.textContent.trim(); timelineRange.parentElement.querySelectorAll("button").forEach(button => button.classList.toggle("is-active", button === timelineRange)); renderMedicationTimeline(); }
   });
+
+  document.addEventListener("pointerover", event => { const point = event.target.closest?.(".med-dose-point"); if (point && event.pointerType !== "touch" && !point.closest(".med-dose-chart")?.querySelector(".med-dose-tooltip.is-pinned")) showMedicationDoseTooltip(point); });
+  document.addEventListener("pointerout", event => { const point = event.target.closest?.(".med-dose-point"); if (point && event.pointerType !== "touch" && !point.contains(event.relatedTarget)) hideMedicationDoseTooltip(point); });
+  document.addEventListener("focusin", event => { const point = event.target.closest?.(".med-dose-point"); if (point) showMedicationDoseTooltip(point); });
+  document.addEventListener("focusout", event => { const point = event.target.closest?.(".med-dose-point"); if (point) hideMedicationDoseTooltip(point); });
+  document.addEventListener("keydown", event => {
+    const point = event.target.closest?.(".med-dose-point");
+    if (point && ["Enter", " "].includes(event.key)) { event.preventDefault(); showMedicationDoseTooltip(point, true); }
+    if (event.key === "Escape") document.querySelectorAll(".med-dose-tooltip.is-visible").forEach(tooltip => hideMedicationDoseTooltip(tooltip.closest(".med-dose-chart"), true));
+  });
+
+  const doseChartGestures = new WeakMap();
+  document.addEventListener("pointerdown", event => {
+    const viewport = event.target.closest?.(".med-dose-chart-viewport");
+    if (!viewport || event.pointerType !== "touch") return;
+    const gesture = doseChartGestures.get(viewport) || { pointers: new Map(), moved: false };
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    gesture.moved = false;
+    gesture.dragStartX = event.clientX;
+    gesture.dragStartScroll = viewport.scrollLeft;
+    if (gesture.pointers.size === 2) {
+      const [first, second] = [...gesture.pointers.values()];
+      gesture.pinchStartDistance = Math.hypot(second.x - first.x, second.y - first.y);
+      gesture.pinchStartZoom = Number(viewport.closest(".med-card").dataset.doseChartZoom) || 1;
+    }
+    doseChartGestures.set(viewport, gesture);
+    viewport.setPointerCapture?.(event.pointerId);
+  });
+  document.addEventListener("pointermove", event => {
+    const viewport = event.target.closest?.(".med-dose-chart-viewport"), gesture = viewport && doseChartGestures.get(viewport);
+    if (!gesture?.pointers.has(event.pointerId)) return;
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (gesture.pointers.size >= 2) {
+      const [first, second] = [...gesture.pointers.values()], distance = Math.hypot(second.x - first.x, second.y - first.y), center = (first.x + second.x) / 2, rect = viewport.getBoundingClientRect();
+      if (gesture.pinchStartDistance) setMedicationDoseZoom(viewport.closest(".med-card"), gesture.pinchStartZoom * distance / gesture.pinchStartDistance, Math.max(0, Math.min(1, (center - rect.left) / rect.width)));
+      gesture.moved = true;
+      event.preventDefault();
+    } else if ((Number(viewport.closest(".med-card").dataset.doseChartZoom) || 1) > 1) {
+      const pointer = gesture.pointers.get(event.pointerId), delta = pointer.x - gesture.dragStartX;
+      if (Math.abs(delta) > 4) gesture.moved = true;
+      viewport.scrollLeft = gesture.dragStartScroll - delta;
+    }
+  }, { passive: false });
+  const endDoseChartGesture = event => {
+    const viewport = event.target.closest?.(".med-dose-chart-viewport"), gesture = viewport && doseChartGestures.get(viewport);
+    if (!gesture) return;
+    gesture.pointers.delete(event.pointerId);
+    if (!gesture.pointers.size) setTimeout(() => { gesture.moved = false; }, 0);
+  };
+  document.addEventListener("pointerup", endDoseChartGesture);
+  document.addEventListener("pointercancel", endDoseChartGesture);
 
   let indicatorDrag = null;
   document.addEventListener("pointerdown", event => {
@@ -381,10 +448,11 @@
     saveIndicatorManagerOrder({ announce: true, focusKey: row.dataset.managerKey });
   });
 
-  document.querySelector("#confirmActionButton").addEventListener("click", () => { const action = pendingConfirm; pendingConfirm = null; closeFeatureModal(document.querySelector("#confirmModal")); if (action) action(); });
+  document.querySelector("#confirmActionButton").addEventListener("click", runPendingConfirm);
 
   const authMessage = error => {
     const message = String(error?.message || "");
+    if (/failed to fetch|fetch failed|networkerror|network request failed|load failed/i.test(message)) return "无法连接云端服务，请检查网络或切换浏览器后重试";
     if (/invalid login credentials/i.test(message)) return "用户名或密码不正确";
     if (/user already registered|already been registered/i.test(message)) return "该用户名已经注册，请直接登录";
     if (/password/i.test(message)) return "密码不符合安全要求";
@@ -597,6 +665,84 @@
   window.addEventListener("online", () => { document.querySelector("#syncTitle").textContent = "网络已恢复"; document.querySelector("#syncDescription").textContent = "点击重新同步，将本地变更发送到云端"; });
 
   function medicationNameFromCard(card) { return card?.querySelector("h3")?.textContent.trim() || "未命名药物"; }
+  function medicationDoseSeries(name, card) {
+    const log = state.medicationLogs[name] || {}, records = state.addedMedicationRecords.filter(record => record.name === name), points = [];
+    records.forEach(record => {
+      const dose = Number(record.dose ?? record.dailyDose);
+      if (record.startDate && Number.isFinite(dose)) points.push({ date: record.startDate, dose, unit: record.unit || "", source: "开始用药" });
+    });
+    (log.stages || []).forEach(stage => {
+      const dose = Number(stage.dose);
+      if (stage.date && Number.isFinite(dose)) points.push({ date: stage.date, dose, unit: stage.unit || "", source: stage.type || "剂量调整" });
+    });
+    (log.administrations || []).forEach(item => {
+      const dose = Number(item.dose);
+      if (item.date && Number.isFinite(dose)) points.push({ date: item.date, dose, unit: item.unit || "", source: "实际给药" });
+    });
+    if (!points.length) {
+      const dose = Number(card?.querySelector(".dose strong")?.textContent.trim()), unit = card?.querySelector(".dose span")?.textContent.trim().split(/[ ·]/)[0] || "", date = card?.dataset.medicationStartDate;
+      if (date && Number.isFinite(dose)) points.push({ date, dose, unit, source: "当前记录" });
+    }
+    const sorted = points.filter(point => Number.isFinite(Date.parse(point.date))).sort((left, right) => Date.parse(left.date) - Date.parse(right.date));
+    const latestUnit = sorted.at(-1)?.unit || "";
+    return sorted.filter(point => point.unit === latestUnit).filter((point, index, list) => index === list.findIndex(item => item.date === point.date && item.dose === point.dose && item.unit === point.unit));
+  }
+  function medicationDoseChartSVG(points, zoom = 1, availableWidth = 660) {
+    if (!points.length) return `<div class="med-dose-empty"><i data-lucide="chart-no-axes-column"></i><strong>暂无剂量记录</strong><small>记录开始用药、调整剂量或实际给药后，这里会生成柱状图。</small></div>`;
+    const width = Math.round(Math.max(280, availableWidth, points.length * 92) * zoom), values = points.map(point => Math.max(0, Number(point.dose) || 0)), maximum = Math.max(...values, 1);
+    const columns = points.map(point => {
+      const height = Math.max(18, Math.min(36, Math.max(0, Number(point.dose) || 0) / maximum * 36));
+      return `<button type="button" class="med-dose-point med-dose-column" style="--dose-step:${height}px" aria-label="${safeText(`${point.date}，${point.dose} ${point.unit}，${point.source}`)}" data-dose-date="${safeText(point.date)}" data-dose-value="${safeText(point.dose)}" data-dose-unit="${safeText(point.unit)}" data-dose-source="${safeText(point.source)}"><b>${safeText(point.dose)} ${safeText(point.unit)}</b><i aria-hidden="true"></i><time>${safeText(point.date)}</time></button>`;
+    }).join("");
+    return `<div class="med-dose-bars" style="width:${width}px" role="group" aria-label="共 ${points.length} 条已记录剂量数据">${columns}</div>`;
+  }
+  function renderMedicationDoseChart(card) {
+    const viewport = card.querySelector(".med-dose-chart-viewport");
+    if (!viewport) return;
+    hideMedicationDoseTooltip(card.querySelector(".med-dose-chart"), true);
+    const name = medicationNameFromCard(card), points = medicationDoseSeries(name, card), zoom = Math.max(1, Math.min(4, Number(card.dataset.doseChartZoom) || 1));
+    viewport.innerHTML = medicationDoseChartSVG(points, zoom, viewport.clientWidth);
+    card.querySelector("[data-dose-chart-count]").textContent = points.length ? `${points.length} 条记录` : "暂无记录";
+    card.querySelector("[data-dose-zoom-out]").disabled = zoom <= 1;
+    card.querySelector("[data-dose-zoom-in]").disabled = zoom >= 4;
+    card.querySelector("[data-dose-zoom-value]").textContent = `${Math.round(zoom * 100)}%`;
+    if (window.lucide) lucide.createIcons();
+  }
+  function ensureMedicationDoseCharts() {
+    document.querySelectorAll(".med-card").forEach(card => {
+      if (card.querySelector(".med-dose-toggle")) return;
+      const name = medicationNameFromCard(card), panelId = `medDoseChart-${Math.random().toString(36).slice(2, 9)}`;
+      card.insertAdjacentHTML("beforeend", `<button type="button" class="med-dose-toggle" aria-expanded="false" aria-controls="${panelId}"><span><i data-lucide="chart-no-axes-column"></i><strong>查看用药图表</strong><small>剂量与时间</small></span><i data-lucide="chevron-down" class="med-dose-chevron"></i></button><section class="med-dose-chart" id="${panelId}" aria-label="${safeText(name)}用药情况柱状图" hidden><div class="med-dose-chart-head"><div><strong>用药情况</strong><small><span data-dose-chart-count>0 条记录</span>，点按柱子查看详情</small></div><div class="med-dose-chart-tools" role="group" aria-label="调整图表缩放"><button type="button" data-dose-zoom-out aria-label="缩小图表"><i data-lucide="minus"></i></button><span data-dose-zoom-value>100%</span><button type="button" data-dose-zoom-in aria-label="放大图表"><i data-lucide="plus"></i></button></div></div><div class="med-dose-chart-viewport"><div class="med-dose-chart-loading">正在准备图表</div></div><p class="med-dose-gesture-hint"><i data-lucide="scan-search"></i>移动端可双指缩放，放大后左右拖动</p><div class="med-dose-tooltip" role="status" aria-live="polite" aria-hidden="true"><time></time><strong></strong><small></small></div></section>`);
+    });
+    if (window.lucide) lucide.createIcons();
+  }
+  function setMedicationDoseZoom(card, zoom, anchor = .5) {
+    const viewport = card.querySelector(".med-dose-chart-viewport"), previousWidth = viewport.scrollWidth || 1, previousScroll = viewport.scrollLeft, next = Math.max(1, Math.min(4, zoom));
+    hideMedicationDoseTooltip(card.querySelector(".med-dose-chart"), true);
+    card.dataset.doseChartZoom = String(next);
+    renderMedicationDoseChart(card);
+    const anchoredPosition = previousScroll + viewport.clientWidth * anchor;
+    viewport.scrollLeft = anchoredPosition / previousWidth * viewport.scrollWidth - viewport.clientWidth * anchor;
+  }
+  function toggleMedicationDoseChart(button) {
+    const card = button.closest(".med-card"), panel = card.querySelector(".med-dose-chart"), expanded = button.getAttribute("aria-expanded") === "true";
+    button.setAttribute("aria-expanded", String(!expanded));
+    button.querySelector("strong").textContent = expanded ? "查看用药图表" : "收起用药图表";
+    panel.hidden = expanded;
+    card.classList.toggle("is-dose-expanded", !expanded);
+    if (!expanded) requestAnimationFrame(() => renderMedicationDoseChart(card));
+  }
+  function showMedicationDoseTooltip(point, pinned = false) {
+    const chart = point.closest(".med-dose-chart"), tooltip = chart.querySelector(".med-dose-tooltip"), chartRect = chart.getBoundingClientRect(), pointRect = point.getBoundingClientRect();
+    chart.querySelectorAll(".med-dose-point.is-active").forEach(item => item.classList.remove("is-active")); point.classList.add("is-active");
+    tooltip.querySelector("time").textContent = formatLongDate(point.dataset.doseDate);
+    tooltip.querySelector("strong").textContent = `${point.dataset.doseValue} ${point.dataset.doseUnit}`;
+    tooltip.querySelector("small").textContent = point.dataset.doseSource;
+    tooltip.style.left = `${Math.max(72, Math.min(chartRect.width - 72, pointRect.left + pointRect.width / 2 - chartRect.left))}px`;
+    tooltip.style.top = `${Math.max(62, pointRect.top - chartRect.top - 12)}px`;
+    tooltip.classList.add("is-visible"); tooltip.classList.toggle("is-pinned", pinned); tooltip.setAttribute("aria-hidden", "false");
+  }
+  function hideMedicationDoseTooltip(target, force = false) { const chart = target?.classList?.contains("med-dose-chart") ? target : target?.closest?.(".med-dose-chart"), tooltip = chart?.querySelector(".med-dose-tooltip"); if (!tooltip || (!force && tooltip.classList.contains("is-pinned"))) return; tooltip.classList.remove("is-visible", "is-pinned"); tooltip.setAttribute("aria-hidden", "true"); chart.querySelectorAll(".med-dose-point.is-active").forEach(point => point.classList.remove("is-active")); }
   function medicationColorChoice(value) {
     const colors = window.SLE_MEDICATION_COLORS || [];
     return colors.find(color => color.value.toUpperCase() === String(value || "").toUpperCase()) || colors[0];
@@ -968,8 +1114,70 @@
     if (stopButton) stopButton.hidden = status === "已停药";
   }
   function handleMedicationCardButton(button) { const card = button.closest(".med-card"), name = medicationNameFromCard(card); selectedMedication = name; if (button.textContent.includes("调整剂量")) openMedicationTask("adjust", name); else if (button.textContent.includes("记录给药")) openMedicationTask("administration", name); else { configureMedicationActions(card, name); document.querySelector("#medicationActionsTitle").textContent = name; document.querySelector("#medicationActionsDescription").textContent = "选择要记录或查看的操作。"; openFeatureModal("medicationActionsModal"); } }
+  function medicationHistoryCollection(name, kind) {
+    const log = state.medicationLogs[name] ||= { status: "使用中", stages: [], administrations: [], observations: [] };
+    return kind === "administration" ? (log.administrations ||= []) : (log.stages ||= []);
+  }
+  function medicationHistoryOptions(values, current) {
+    const options = current && !values.includes(current) ? [current, ...values] : values;
+    return options.map(value => `<option${value === current ? " selected" : ""}>${safeText(value)}</option>`).join("");
+  }
+  function renderMedicationHistoryManager(name, container) {
+    const log = state.medicationLogs[name] || { stages: [], administrations: [] };
+    const section = (title, kind, items) => {
+      const indexed = items.map((item, index) => ({ item, index })).sort((left, right) => String(right.item.date || "").localeCompare(String(left.item.date || "")) || right.index - left.index);
+      return `<section class="med-history-section"><div class="med-history-heading"><div><h3>${title}</h3><small>${items.length} 条记录</small></div></div>${indexed.length ? `<div class="med-history-list">${indexed.map(({ item, index }) => {
+        const isAdministration = kind === "administration", primary = isAdministration ? `${item.dose || "-"} ${item.unit || ""}` : item.type || "用药阶段", secondary = isAdministration ? [item.status, item.hospital, item.adverse].filter(Boolean).join(" · ") : [item.dose !== undefined && item.dose !== "" ? `${item.dose} ${item.unit || ""}` : "", item.frequency, item.reason].filter(Boolean).join(" · ");
+        return `<article class="med-history-row"><span class="med-history-icon"><i data-lucide="${isAdministration ? "syringe" : "sliders-horizontal"}"></i></span><div class="med-history-copy"><time>${safeText(item.date || "日期未记录")}</time><strong>${safeText(primary)}</strong><small>${safeText(secondary || "未填写补充信息")}</small></div><div class="med-history-actions"><button type="button" data-med-history-edit data-history-kind="${kind}" data-history-index="${index}" aria-label="编辑 ${safeText(primary)}"><i data-lucide="square-pen"></i></button><button type="button" data-med-history-delete data-history-kind="${kind}" data-history-index="${index}" aria-label="删除 ${safeText(primary)}"><i data-lucide="trash-2"></i></button></div></article>`;
+      }).join("")}</div>` : `<div class="detail-empty">暂无${title}</div>`}</section>`;
+    };
+    container.innerHTML = `<div class="med-history-notice"><i data-lucide="info"></i><p><strong>只管理历史记录</strong><small>删除单条记录不会删除当前药品；如需移除整个药品，请使用“删除用药”。</small></p></div>${section("用药阶段", "stage", log.stages || [])}${section("实际给药", "administration", log.administrations || [])}`;
+    if (window.lucide) lucide.createIcons();
+  }
+  function openMedicationHistoryEditor(name, kind, index) {
+    const item = medicationHistoryCollection(name, kind)[index];
+    if (!item) return;
+    const form = document.querySelector("#medicationTaskForm"), fields = document.querySelector("#medicationTaskFields"), details = document.querySelector("#medicationDetailsContent");
+    selectedMedication = name; form.hidden = false; details.hidden = true; form.elements.action.value = "history-edit"; form.elements.medicationName.value = name;
+    document.querySelector("#medicationTaskKicker").textContent = "EDIT MEDICATION HISTORY";
+    document.querySelector("#medicationTaskTitle").textContent = `修改 ${name} 历史记录`;
+    document.querySelector("#medicationTaskDescription").textContent = "保存后，药品卡片、柱状图和历年时间轴会同步更新。";
+    form.querySelector('.button[type="submit"]').textContent = "保存修改";
+    const returnButton = `<button class="med-history-return" type="button" data-return-medication-history><i data-lucide="arrow-left"></i>返回历史记录</button><input type="hidden" name="historyKind" value="${kind}" /><input type="hidden" name="historyIndex" value="${index}" />`;
+    if (kind === "administration") {
+      fields.innerHTML = `${returnButton}<div class="form-grid"><label><span>实施日期 *</span><input name="date" type="date" value="${safeText(item.date || today())}" required /></label><label><span>实际剂量 *</span><input name="dose" type="number" step="0.001" value="${safeText(item.dose || "")}" required /></label><label><span>剂量单位</span><input name="unit" value="${safeText(item.unit || "")}" /></label><label><span>给药地点</span><input name="hospital" value="${safeText(item.hospital || "")}" /></label><label><span>完成状态</span><select name="status">${medicationHistoryOptions(["按计划完成", "延期完成", "部分完成", "取消"], item.status || "按计划完成")}</select></label><label><span>不良反应</span><input name="adverse" value="${safeText(item.adverse || "")}" /></label><label class="med-form-full"><span>备注</span><textarea name="notes">${safeText(item.notes || "")}</textarea></label></div>`;
+    } else {
+      fields.innerHTML = `${returnButton}<div class="form-grid"><label><span>记录日期 *</span><input name="date" type="date" value="${safeText(item.date || today())}" required /></label><label><span>记录类型</span><select name="type">${medicationHistoryOptions(["开始用药", "增加剂量", "减少剂量", "调整频率", "更换品牌", "暂停用药", "恢复用药", "停止用药", "其他调整"], item.type || "其他调整")}</select></label><label><span>品牌</span><input name="brand" value="${safeText(item.brand || "")}" /></label><label><span>剂量</span><input name="dose" type="number" step="0.001" value="${safeText(item.dose || "")}" /></label><label><span>剂量单位</span><input name="unit" value="${safeText(item.unit || "")}" /></label><label><span>使用频率</span><input name="frequency" value="${safeText(item.frequency || "")}" /></label><label><span>给药途径</span><input name="route" value="${safeText(item.route || "")}" /></label><label><span>调整原因</span><input name="reason" value="${safeText(item.reason || "")}" /></label><label class="med-form-full"><span>原始用药说明</span><textarea name="instruction">${safeText(item.instruction || "")}</textarea></label><label class="med-form-full"><span>备注</span><textarea name="notes">${safeText(item.notes || "")}</textarea></label></div>`;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+  function syncMedicationHistoryUI(name) {
+    const log = state.medicationLogs[name] || { stages: [] }, stages = log.stages || [];
+    const datedStages = stages.map((item, index) => ({ item, index })).sort((left, right) => String(left.item.date || "").localeCompare(String(right.item.date || "")) || left.index - right.index);
+    const lifecycle = datedStages.filter(({ item }) => ["开始用药", "暂停用药", "恢复用药", "停止用药"].includes(item.type)).at(-1)?.item;
+    if (lifecycle) log.status = lifecycle.type === "停止用药" ? "已停药" : lifecycle.type === "暂停用药" ? "已暂停" : "使用中";
+    const doseStage = datedStages.filter(({ item }) => item.dose !== undefined && item.dose !== "").at(-1)?.item;
+    const records = state.addedMedicationRecords.filter(record => record.name === name).sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || ""))), currentRecord = records.at(-1);
+    if (currentRecord && doseStage) Object.assign(currentRecord, { dose: doseStage.dose, unit: doseStage.unit || currentRecord.unit, frequency: doseStage.frequency || currentRecord.frequency, route: doseStage.route || currentRecord.route, brand: doseStage.brand || currentRecord.brand });
+    if (currentRecord && lifecycle?.type === "停止用药") currentRecord.endDate = lifecycle.date;
+    if (currentRecord && lifecycle && ["开始用药", "恢复用药"].includes(lifecycle.type)) currentRecord.endDate = "";
+    document.querySelectorAll(".med-card").forEach(card => {
+      if (medicationNameFromCard(card) !== name) return;
+      if (doseStage) { const dose = card.querySelector(".dose"); if (dose) dose.innerHTML = `<strong>${safeText(doseStage.dose)}</strong><span>${safeText(doseStage.unit || "")} · ${safeText(doseStage.frequency || "频率未记录")}</span>`; const recent = card.querySelector("dl div:nth-child(2) dd"); if (recent) recent.textContent = `${String(doseStage.date || "").replaceAll("-", ".")} · ${safeText(doseStage.type || "剂量记录")}`; }
+      if (lifecycle) card.dataset.medicationEndDate = lifecycle.type === "停止用药" ? lifecycle.date || "" : "";
+    });
+    updateMedicationCardStatus(name, log.status || "使用中");
+  }
+  function deleteMedicationHistoryRecord(name, kind, index) {
+    const collection = medicationHistoryCollection(name, kind), item = collection[index];
+    if (!item) return;
+    const label = kind === "administration" ? `${item.date || "未记录日期"} 的实际给药` : `${item.date || "未记录日期"} 的${item.type || "用药阶段"}`;
+    confirmAction("删除这条历史用药？", `${label}将被永久删除，但当前药品仍会保留。`, "删除记录", () => {
+      collection.splice(index, 1); syncMedicationHistoryUI(name); persist(); renderMedicationHistoryManager(name, document.querySelector("#medicationDetailsContent")); showToast("历史用药已删除", "药品卡片、柱状图和时间轴已更新");
+    });
+  }
   function openMedicationTask(action, name) {
-    selectedMedication = name; closeFeatureModal(document.querySelector("#medicationActionsModal")); const form = document.querySelector("#medicationTaskForm"), fields = document.querySelector("#medicationTaskFields"), details = document.querySelector("#medicationDetailsContent"); form.hidden = action === "details"; details.hidden = action !== "details"; form.elements.action.value = action; form.elements.medicationName.value = name;
+    selectedMedication = name; closeFeatureModal(document.querySelector("#medicationActionsModal")); const form = document.querySelector("#medicationTaskForm"), fields = document.querySelector("#medicationTaskFields"), details = document.querySelector("#medicationDetailsContent"); const readOnlyView = action === "details" || action === "history"; form.hidden = readOnlyView; details.hidden = !readOnlyView; form.elements.action.value = action; form.elements.medicationName.value = name;
     const title = document.querySelector("#medicationTaskTitle"), description = document.querySelector("#medicationTaskDescription"), kicker = document.querySelector("#medicationTaskKicker"), submitButton = form.querySelector('.button[type="submit"]');
     submitButton.textContent = "保存记录";
     if (action === "adjust") { kicker.textContent = "NEW MEDICATION STAGE"; title.textContent = `调整 ${name}`; description.textContent = "保存后会结束上一阶段并创建新的用药阶段。"; fields.innerHTML = `<div class="form-grid"><label><span>调整日期 *</span><input name="date" type="date" value="${today()}" required /></label><label><span>调整类型</span><select name="type"><option>增加剂量</option><option>减少剂量</option><option>调整频率</option><option>更换品牌</option><option>恢复用药</option><option>其他调整</option></select></label><label><span>当前品牌</span><input name="brand" placeholder="记录本阶段实际品牌" /></label><label><span>新剂量 *</span><input name="dose" type="number" step="0.001" required /></label><label><span>剂量单位</span><select name="unit"><option>mg</option><option>g</option><option>μg</option><option>mL</option><option>IU</option><option>U</option><option>片</option><option>粒</option><option>支</option><option>瓶</option></select></label><label><span>使用频率</span><select name="frequency"><option>每日一次</option><option>每日两次</option><option>每日三次</option><option>每日四次</option><option>隔日一次</option><option>每周一次</option><option>每两周一次</option><option>每四周一次</option><option>每月一次</option><option>按疗程</option><option>必要时使用</option></select></label><label><span>给药途径</span><select name="route"><option>口服</option><option>皮下注射</option><option>静脉注射</option><option>静脉输注</option><option>肌内注射</option><option>外用</option><option>其他</option></select></label><label><span>调整原因</span><input name="reason" /></label><label class="med-form-full"><span>原始用药说明</span><textarea name="instruction" placeholder="按处方或医嘱原文记录"></textarea></label><label class="med-form-full"><span>备注</span><textarea name="notes"></textarea></label></div>`; }
@@ -977,6 +1185,7 @@
     if (action === "observation") { kicker.textContent = "PERSONAL OBSERVATION"; title.textContent = `添加 ${name} 观察记录`; description.textContent = "观察记录用于个人回顾，不生成治疗结论。"; fields.innerHTML = `<div class="form-grid one-column"><label><span>观察日期 *</span><input name="date" type="date" value="${today()}" required /></label><label><span>观察类型</span><select name="type"><option>症状变化</option><option>化验变化</option><option>不良反应</option><option>感染</option><option>住院</option><option>医生评价</option><option>个人感受</option><option>其他</option></select></label><label><span>观察内容 *</span><textarea name="content" required></textarea></label><label><span>关联检查记录</span><select name="relatedReport"><option value="">不关联</option><option>${currentItem()?.short || "当前指标"} 最近一次检查</option></select></label></div>`; }
     if (action === "color") { kicker.textContent = "MEDICATION COLOR"; title.textContent = `修改 ${name} 颜色`; description.textContent = "使用颜色快速区分不同药品。"; fields.innerHTML = medicationColorEditorHTML(name); submitButton.textContent = "保存颜色"; }
     if (action === "details") { kicker.textContent = "MEDICATION DETAILS"; title.textContent = name; description.textContent = "查看所有历史阶段、实际给药和观察记录。"; renderMedicationDetails(name, details); }
+    if (action === "history") { kicker.textContent = "MANAGE MEDICATION HISTORY"; title.textContent = `修改 ${name} 历史用药`; description.textContent = "逐条编辑或删除原有阶段与实际给药记录。"; renderMedicationHistoryManager(name, details); }
     if (action === "delete") { confirmAction(`删除 ${name}？`, "该药品的当前信息、全部历史阶段、实际给药和观察记录都会被删除。此操作无法撤销。", "删除用药", () => { state.addedMedicationRecords = state.addedMedicationRecords.filter(record => record.name !== name); state.deletedMedicationNames = [...new Set([...state.deletedMedicationNames, name])]; delete state.medicationLogs[name]; delete state.medicationColors[name]; removeMedicationFromUI(name); persist(); showToast(`${name} 已删除`, "相关用药记录已从卡片和时间轴中移除"); }); return; }
     if (action === "pause" || action === "resume" || action === "stop") { const label = action === "pause" ? "暂停用药" : action === "resume" ? "恢复用药" : "停止用药"; confirmAction(`${label}？`, `系统会创建 ${name} 的“${label}”阶段并保留全部历史数据。`, label, () => { const log = state.medicationLogs[name] ||= { stages: [], administrations: [], observations: [] }; const actionDate = today(); log.status = action === "pause" ? "已暂停" : action === "resume" ? "使用中" : "已停药"; log.stages.push({ date: actionDate, type: label, reason: "" }); if (action === "stop") { const record = latestOpenMedicationRecord(name); if (record) record.endDate = actionDate; document.querySelectorAll(".med-card").forEach(card => { if (medicationNameFromCard(card) !== name || String(card.dataset.medicationEndDate || "").trim()) return; card.dataset.medicationEndDate = actionDate; const period = card.querySelector("dl div:first-child dd"); if (period) period.textContent = `${String(card.dataset.medicationStartDate || "").replaceAll("-", ".")} 至 ${actionDate.replaceAll("-", ".")}`; }); } updateMedicationCardStatus(name, log.status); persist(); showToast(`${name} ${label}`, "历史阶段已完整保留"); }); return; }
     openFeatureModal("medicationTaskModal");
@@ -996,6 +1205,19 @@
       persist();
       closeFeatureModal(document.querySelector("#medicationTaskModal"));
       showToast("药品颜色已更新", `${data.medicationName} 已改为${color.name}`);
+      return;
+    }
+    if (data.action === "history-edit") {
+      const kind = data.historyKind, index = Number(data.historyIndex), collection = medicationHistoryCollection(data.medicationName, kind), previous = collection[index];
+      if (!previous) { showToast("未找到这条历史记录", "记录可能已在其他设备上更新"); return; }
+      const updated = { ...previous, ...data };
+      ["action", "medicationName", "historyKind", "historyIndex"].forEach(key => delete updated[key]);
+      collection[index] = updated;
+      if (kind === "stage" && previous.type === "开始用药") {
+        const baseRecord = state.addedMedicationRecords.find(record => record.name === data.medicationName && record.startDate === previous.date);
+        if (baseRecord) Object.assign(baseRecord, { startDate: updated.date, brand: updated.brand, dose: updated.dose, unit: updated.unit, frequency: updated.frequency, route: updated.route, purpose: updated.reason, instruction: updated.instruction, notes: updated.notes });
+      }
+      syncMedicationHistoryUI(data.medicationName); persist(); openMedicationTask("history", data.medicationName); showToast("历史用药已修改", "药品卡片、柱状图和时间轴已同步更新");
       return;
     }
     const log = state.medicationLogs[data.medicationName] ||= { status: "使用中", stages: [], administrations: [], observations: [] };
@@ -1018,5 +1240,6 @@
   document.querySelectorAll('[data-open-modal="indicatorModal"]').forEach(button => button.addEventListener("click", () => renderHiddenIndicators()));
   function renderHiddenIndicators() { let manager = document.querySelector("#hiddenIndicatorManager"); if (!manager) { manager = document.createElement("div"); manager.id = "hiddenIndicatorManager"; manager.className = "hidden-indicator-manager"; document.querySelector("#indicatorForm .modal-actions").before(manager); } const hidden = []; Object.entries(indicatorData).forEach(([category, data]) => Object.entries(data.items).forEach(([key, item]) => { if (item.isHidden) hidden.push({ category, key, item }); })); manager.innerHTML = hidden.length ? `<div class="hidden-manager-title"><strong>已隐藏指标</strong><small>点击恢复显示</small></div>${hidden.map(({ category, key, item }) => `<button type="button" data-restore-category="${category}" data-restore-key="${key}"><span>${safeText(item.short)}</span><i data-lucide="eye"></i></button>`).join("")}` : ""; manager.querySelectorAll("[data-restore-key]").forEach(button => button.addEventListener("click", () => { indicatorData[button.dataset.restoreCategory].items[button.dataset.restoreKey].isHidden = false; persist(); renderHiddenIndicators(); renderPicker(); showToast("指标已恢复", "已重新显示在对应分类中"); })); if (window.lucide) lucide.createIcons(); }
 
+  ensureMedicationDoseCharts();
   if (window.lucide) lucide.createIcons();
 })();
