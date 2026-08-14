@@ -666,14 +666,17 @@
 
   function medicationNameFromCard(card) { return card?.querySelector("h3")?.textContent.trim() || "未命名药物"; }
   function medicationDoseSeries(name, card) {
-    const log = state.medicationLogs[name] || {}, records = state.addedMedicationRecords.filter(record => record.name === name), points = [];
-    records.forEach(record => {
-      const dose = Number(record.dose ?? record.dailyDose);
-      if (record.startDate && Number.isFinite(dose)) points.push({ date: record.startDate, dose, unit: record.unit || "", source: "开始用药" });
-    });
+    const log = state.medicationLogs[name] || {}, records = state.addedMedicationRecords.filter(record => record.name === name), points = [], stagedDoseDates = new Set();
     (log.stages || []).forEach(stage => {
       const dose = Number(stage.dose);
-      if (stage.date && Number.isFinite(dose)) points.push({ date: stage.date, dose, unit: stage.unit || "", source: stage.type || "剂量调整" });
+      if (stage.date && Number.isFinite(dose)) {
+        stagedDoseDates.add(stage.date);
+        points.push({ date: stage.date, dose, unit: stage.unit || "", source: stage.type || "剂量调整" });
+      }
+    });
+    records.forEach(record => {
+      const dose = Number(record.dose ?? record.dailyDose);
+      if (record.startDate && Number.isFinite(dose) && !stagedDoseDates.has(record.startDate)) points.push({ date: record.startDate, dose, unit: record.unit || "", source: "开始用药" });
     });
     (log.administrations || []).forEach(item => {
       const dose = Number(item.dose);

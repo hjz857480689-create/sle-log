@@ -245,7 +245,7 @@
 }
 
 :root[data-theme="light"] .sidebar{
-  background:rgba(221,199,224,.52);
+  background:#fff;
   border-right-color:rgba(255,255,255,.48);
   box-shadow:10px 0 30px rgba(40,32,24,.10),inset -1px 0 rgba(255,255,255,.28);
   backdrop-filter:blur(24px) saturate(1.16);
@@ -835,7 +835,18 @@
   body.timeline-landscape-forced .timeline-card.is-expanded .timeline-row{min-height:30px}
 }
 :root[data-theme="light"] .timeline-card .timeline-range-control{
-  background:#ECE9E3;
+  background:var(--background);
+}
+@media(max-width:767px){
+  .timeline-card .timeline-range-control{
+    height:36px;
+    padding:3px;
+  }
+  .timeline-card .timeline-range-control button{
+    height:30px;
+    min-height:30px;
+  }
+  .timeline-card .timeline-filter button{height:36px}
 }
 .treatment-node svg{fill:var(--med-color);color:#111;stroke-width:1.5}
 
@@ -1863,12 +1874,12 @@
 .indicator-list-empty small{margin-top:3px;font-size:11px}
 
 @media(max-width:767px){
-  .category-manage-button{width:44px;height:44px;padding:0}
+  .category-manage-button{width:36px;height:36px;padding:0}
   .category-manage-button span{display:none}
-  .category-manage-button svg{width:16px;height:16px}
+  .category-manage-button svg{width:14px;height:14px}
   .indicator-list-controls{margin:14px 0 12px;gap:8px}
-  .indicator-range-control{min-width:0;flex:1;height:44px}
-  .indicator-range-control button{min-width:0;height:36px;padding:0 8px;font-size:12px;white-space:nowrap}
+  .indicator-range-control{min-width:0;flex:1;height:36px;padding:3px}
+  .indicator-range-control button{min-width:0;height:30px;padding:0 8px;font-size:12px;white-space:nowrap}
   .indicator-trend-list{gap:10px}
   .indicator-trend-card{border-radius:14px}
   .indicator-card-summary{gap:12px;padding:17px 16px 2px}
