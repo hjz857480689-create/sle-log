@@ -36,16 +36,23 @@
     localStorage.setItem(cacheKey(userId), JSON.stringify(cleanState(value)));
   };
   const clearCache = userId => { if (userId) localStorage.removeItem(cacheKey(userId)); };
+  const request = async (operation, fallback = {}) => {
+    try {
+      return await operation();
+    } catch (error) {
+      return { ...fallback, error };
+    }
+  };
 
   async function getSession() {
     if (!client) return { user: null, error: null };
-    const { data, error } = await client.auth.getSession();
+    const { data, error } = await request(() => client.auth.getSession(), { data: { session: null } });
     activeUser = data?.session?.user || null;
     return { user: activeUser, error };
   }
   async function loadState() {
     if (!client || !activeUser) return { state: null, error: null };
-    const { data, error } = await client.from("user_app_state").select("state, updated_at").eq("user_id", activeUser.id).maybeSingle();
+    const { data, error } = await request(() => client.from("user_app_state").select("state, updated_at").eq("user_id", activeUser.id).maybeSingle(), { data: null });
     if (error) return { state: readCache(activeUser.id), error };
     if (data?.state) writeCache(activeUser.id, data.state);
     return { state: data?.state || readCache(activeUser.id), updatedAt: data?.updated_at || null, error: null };
@@ -54,7 +61,7 @@
     if (!client || !activeUser) return { error: new Error("尚未登录 Supabase") };
     const state = cleanState(value);
     writeCache(activeUser.id, state);
-    const { error } = await client.from("user_app_state").upsert({ user_id: activeUser.id, state }, { onConflict: "user_id" });
+    const { error } = await request(() => client.from("user_app_state").upsert({ user_id: activeUser.id, state }, { onConflict: "user_id" }));
     window.dispatchEvent(new CustomEvent("sle:cloud-sync", { detail: { ok: !error, error } }));
     return { error };
   }
@@ -71,24 +78,25 @@
     return saveState(value);
   }
   async function signIn(username, password) {
-    const result = await client.auth.signInWithPassword({ email: await usernameForAuth(username), password });
+    const result = await request(async () => client.auth.signInWithPassword({ email: await usernameForAuth(username), password }), { data: { user: null, session: null } });
     activeUser = result.data?.user || null;
     return result;
   }
   async function signUp(username, password, nickname) {
-    const result = await client.auth.signUp({ email: await usernameForAuth(username), password, options: { data: { nickname, username: normalizeUsername(username) } } });
+    const result = await request(async () => client.auth.signUp({ email: await usernameForAuth(username), password, options: { data: { nickname, username: normalizeUsername(username) } } }), { data: { user: null, session: null } });
     activeUser = result.data?.user || null;
     return result;
   }
-  async function signOut() { const result = await client.auth.signOut(); activeUser = null; return result; }
-  async function reauthenticate(username, password) { return client.auth.signInWithPassword({ email: await usernameForAuth(username), password }); }
-  async function updatePassword(password) { return client.auth.updateUser({ password }); }
+  async function signOut() { const result = await request(() => client.auth.signOut()); activeUser = null; return result; }
+  async function reauthenticate(username, password) { return request(async () => client.auth.signInWithPassword({ email: await usernameForAuth(username), password }), { data: { user: null, session: null } }); }
+  async function updatePassword(password) { return request(() => client.auth.updateUser({ password })); }
+  async function resetPasswordByUsername(username, password) { return request(() => client.rpc("reset_password_by_username", { target_username: normalizeUsername(username), new_password: password })); }
   async function updateUsername(username) {
     const normalized = normalizeUsername(username);
-    const result = await client.auth.updateUser({ email: await usernameForAuth(normalized), data: { username: normalized } });
+    const result = await request(async () => client.auth.updateUser({ email: await usernameForAuth(normalized), data: { username: normalized } }), { data: { user: null } });
     if (!result.error && activeUser) {
       activeUser = result.data?.user || activeUser;
-      const { error } = await client.from("profiles").update({ username: normalized }).eq("user_id", activeUser.id);
+      const { error } = await request(() => client.from("profiles").update({ username: normalized }).eq("user_id", activeUser.id));
       if (error) return { ...result, error };
     }
     return result;
@@ -96,7 +104,7 @@
   async function deleteAccount() {
     if (!activeUser) return { error: new Error("尚未登录") };
     const userId = activeUser.id;
-    const result = await client.rpc("delete_current_user");
+    const result = await request(() => client.rpc("delete_current_user"));
     if (!result.error) { clearCache(userId); activeUser = null; }
     return result;
   }
@@ -105,7 +113,7 @@
     configured, localDemo, client,
     get user() { return activeUser; },
     getSession, loadState, saveState, queueSave, flush,
-    signIn, signUp, signOut, reauthenticate, updatePassword, updateUsername, deleteAccount,
+    signIn, signUp, signOut, reauthenticate, updatePassword, resetPasswordByUsername, updateUsername, deleteAccount,
     writeCache, clearCache
   };
 })();
