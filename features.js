@@ -452,12 +452,21 @@
 
   const authMessage = error => {
     const message = String(error?.message || "");
-    if (/failed to fetch|fetch failed|networkerror|network request failed|load failed/i.test(message)) return "无法连接云端服务，请检查网络或切换浏览器后重试";
+    if (/failed to fetch|fetch failed|networkerror|network request failed|load failed|network|timeout|timed out|abort|econnreset|err_network|enotfound|dns/i.test(message)) return "无法连接云端服务，请检查网络或切换浏览器后重试";
     if (/invalid login credentials/i.test(message)) return "用户名或密码不正确";
     if (/user already registered|already been registered/i.test(message)) return "该用户名已经注册，请直接登录";
     if (/password/i.test(message)) return "密码不符合安全要求";
     if (/rate limit|too many/i.test(message)) return "操作过于频繁，请稍后再试";
     return message || "云端服务暂时不可用，请稍后重试";
+  };
+  const authRequest = async (form, label, operation) => {
+    try {
+      return await operation();
+    } catch (error) {
+      form.querySelector("[data-form-error]").textContent = authMessage(error);
+      setFormBusy(form, false, label);
+      return { error };
+    }
   };
   const setFormBusy = (form, busy, label) => {
     const button = form.querySelector("button[type='submit']");
@@ -475,9 +484,37 @@
     }
     if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; return; }
     error.textContent = ""; setFormBusy(form, true, "登录中…");
-    const result = await cloud.signIn(username, password);
+    const result = await authRequest(form, "登录", () => cloud.signIn(username, password));
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "登录"); return; }
     location.reload();
+  });
+  document.querySelector("#recoverForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const form = event.currentTarget, data = new FormData(form), error = form.querySelector("[data-form-error]"), username = normalizeUsername(data.get("username")), newPassword = String(data.get("newPassword") || ""), confirmPassword = String(data.get("confirmPassword") || "");
+    if (!validUsername(username)) { error.textContent = "用户名需为 3–20 位中文、字母、数字或下划线"; return; }
+    if (!validPassword(newPassword)) { error.textContent = "新密码需为 8–20 位，并同时包含字母和数字"; return; }
+    if (newPassword !== confirmPassword) { error.textContent = "两次输入的新密码不一致"; return; }
+    error.textContent = "";
+    setFormBusy(form, true, "更新中…");
+    if (isLocalDemo) {
+      if (username !== state.profile.username) { error.textContent = "用户名或密码不正确"; setFormBusy(form, false, "设置新密码"); return; }
+      state.account.password = newPassword;
+      persist();
+      form.reset();
+      switchAuthView("login");
+      document.querySelector("#loginForm input[name='username']").value = username;
+      showToast("密码已更新", "请使用新密码登录");
+      setFormBusy(form, false, "设置新密码");
+      return;
+    }
+    if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; setFormBusy(form, false, "设置新密码"); return; }
+    const result = await authRequest(form, "设置新密码", () => cloud.resetPasswordByUsername(username, newPassword));
+    if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "设置新密码"); return; }
+    form.reset();
+    switchAuthView("login");
+    document.querySelector("#loginForm input[name='username']").value = username;
+    showToast("密码已更新", "请使用新密码登录");
+    setFormBusy(form, false, "设置新密码");
   });
   document.querySelector("#registerForm").addEventListener("submit", async event => {
     event.preventDefault();
@@ -489,7 +526,7 @@
     if (isLocalDemo) { error.textContent = ""; state.profile = { nickname: username, username, createdAt: today().replaceAll("-", ".") }; state.account.password = password; state.session = true; persist(); showAuth(false); form.reset(); showToast("账号已创建", "本地测试账号已登录"); return; }
     if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; return; }
     error.textContent = ""; setFormBusy(form, true, "创建账号中…");
-    const result = await cloud.signUp(username, password, username);
+    const result = await authRequest(form, "注册并登录", () => cloud.signUp(username, password, username));
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "注册并登录"); return; }
     if (!result.data?.session) { error.textContent = "账号已创建，但云端仍要求邮箱确认；请联系管理员调整登录设置后再注册。"; setFormBusy(form, false, "注册并登录"); return; }
     location.reload();
