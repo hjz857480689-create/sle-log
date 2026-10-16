@@ -1,6 +1,8 @@
 (() => {
   const config = window.SLE_SUPABASE_CONFIG || {};
-  const configured = /^https:\/\/.+\.supabase\.co$/i.test(config.url || "") && Boolean(config.publishableKey) && Boolean(window.supabase?.createClient);
+  const projectConfigured = /^https:\/\/.+\.supabase\.co$/i.test(config.url || "") && Boolean(config.publishableKey);
+  const sdkLoaded = Boolean(window.supabase?.createClient);
+  const configured = projectConfigured && sdkLoaded;
   const localHost = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
   const localDemo = localHost && (!configured || new URLSearchParams(location.search).get("demo") === "1");
   const client = configured && !localDemo && window.supabase?.createClient
@@ -110,7 +112,7 @@
   }
 
   window.SLECloud = {
-    configured, localDemo, client,
+    configured, projectConfigured, sdkLoaded, localDemo, client,
     get user() { return activeUser; },
     getSession, loadState, saveState, queueSave, flush,
     signIn, signUp, signOut, reauthenticate, updatePassword, resetPasswordByUsername, updateUsername, deleteAccount,
