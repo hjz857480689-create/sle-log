@@ -345,12 +345,15 @@
     </div>
 
     <div class="toast" id="toast" role="status"><span><i data-lucide="check"></i></span><div><strong>保存成功</strong><small>趋势图和最新结果已同步更新</small></div><button class="icon-button small" aria-label="关闭提示"><i data-lucide="x"></i></button></div>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./supabase-config.js?v=20260717-supabase"></script>
-    <script src="./supabase-client.js?v=20261015-auth-network-fix"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+      if (!window.supabase?.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>');
+    </script>
+    <script src="./supabase-config.js?v=20261016-sdk-fallback"></script>
+    <script src="./supabase-client.js?v=20261016-sdk-fallback"></script>
     <script src="./app.js?v=20260722-release"></script>
     <script type="module" src="./vendor/xlsx-browser-init.mjs?v=20260721"></script>
-    <script src="./features.js?v=20261015-auth-network-fix"></script>
+    <script src="./features.js?v=20261016-sdk-fallback"></script>
     <script src="./controls.js?v=20260722-release"></script>
   </body>
 </html>
