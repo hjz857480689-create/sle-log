@@ -302,7 +302,9 @@
   const serviceNotice = document.querySelector("[data-auth-service-notice]");
   if (!isLocalDemo && !cloud?.configured) {
     serviceNotice.hidden = false;
-    serviceNotice.textContent = "云端服务尚未配置，暂时无法开放注册登录。";
+    serviceNotice.textContent = cloud?.projectConfigured && !cloud?.sdkLoaded
+      ? "云端组件加载失败，请刷新页面或切换浏览器后重试。"
+      : "云端服务尚未配置，暂时无法开放注册登录。";
     document.querySelectorAll("#loginForm button[type='submit'], #registerForm button[type='submit']").forEach(button => button.disabled = true);
   } else if (cloudBootError) {
     serviceNotice.hidden = false;
@@ -482,7 +484,7 @@
       if (username !== state.profile.username || password !== state.account.password) { error.textContent = "用户名或密码不正确"; return; }
       error.textContent = ""; state.session = true; persist(); showAuth(false); form.elements.password.value = ""; showToast("登录成功", "本地测试数据已加载"); return;
     }
-    if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; return; }
+    if (!cloud?.configured) { error.textContent = cloud?.projectConfigured && !cloud?.sdkLoaded ? "云端组件加载失败，请刷新页面或切换浏览器后重试" : "云端服务尚未配置"; return; }
     error.textContent = ""; setFormBusy(form, true, "登录中…");
     const result = await authRequest(form, "登录", () => cloud.signIn(username, password));
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "登录"); return; }
@@ -507,7 +509,7 @@
       setFormBusy(form, false, "设置新密码");
       return;
     }
-    if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; setFormBusy(form, false, "设置新密码"); return; }
+    if (!cloud?.configured) { error.textContent = cloud?.projectConfigured && !cloud?.sdkLoaded ? "云端组件加载失败，请刷新页面或切换浏览器后重试" : "云端服务尚未配置"; setFormBusy(form, false, "设置新密码"); return; }
     const result = await authRequest(form, "设置新密码", () => cloud.resetPasswordByUsername(username, newPassword));
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "设置新密码"); return; }
     form.reset();
@@ -524,7 +526,7 @@
     if (password !== confirmPassword) { error.textContent = "两次输入的密码不一致"; return; }
     if (!data.get("consent")) { error.textContent = "请先同意服务协议与隐私政策"; return; }
     if (isLocalDemo) { error.textContent = ""; state.profile = { nickname: username, username, createdAt: today().replaceAll("-", ".") }; state.account.password = password; state.session = true; persist(); showAuth(false); form.reset(); showToast("账号已创建", "本地测试账号已登录"); return; }
-    if (!cloud?.configured) { error.textContent = "云端服务尚未配置"; return; }
+    if (!cloud?.configured) { error.textContent = cloud?.projectConfigured && !cloud?.sdkLoaded ? "云端组件加载失败，请刷新页面或切换浏览器后重试" : "云端服务尚未配置"; return; }
     error.textContent = ""; setFormBusy(form, true, "创建账号中…");
     const result = await authRequest(form, "注册并登录", () => cloud.signUp(username, password, username));
     if (result.error) { error.textContent = authMessage(result.error); setFormBusy(form, false, "注册并登录"); return; }
